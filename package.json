@@ -1,0 +1,23 @@
+{
+  "name": "olcys",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OŁCyŚ – Osintowy Łapacz Cyfrowych Śladów. Narzędzie OSINT łączące ślady Web2 z adresami kryptowalutowymi (HackNation 2026, zadanie MF/KAS).",
+  "license": "MIT",
+  "workspaces": [
+    "apps/api",
+    "apps/sandbox",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "npm run build -w apps/web && node --disable-warning=ExperimentalWarning apps/api/src/server.ts",
+    "sandbox": "node apps/sandbox/server.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test \"apps/api/test/*.test.ts\"",
+    "build": "npm run build -w apps/web",
+    "typecheck": "tsc -p apps/api/tsconfig.json && tsc -p apps/web/tsconfig.json"
+  }
+}

@@ -1,0 +1,89 @@
+// Klient REST API. Typy współdzielone z backendem (import wyłącznie typów – brak kodu serwera w bundlu).
+import type { RunResult, AddressResult, InvestigationOptions } from '../../api/src/engine/investigate.ts';
+import type { Investigation, RunRow } from '../../api/src/engine/store.ts';
+
+export type { RunResult, AddressResult, InvestigationOptions, Investigation, RunRow };
+
+export interface Meta {
+  sources: { id: string; label: string; description: string; accepts: string[]; hosts: string[]; synthetic: boolean; available: boolean; note: string | null }[];
+  identifierKinds: { id: string; label: string }[];
+  contexts: Record<string, { label: string; base: number; band: string }>;
+  bands: Record<string, string>;
+  scoringParams: Record<string, number>;
+  categories: Record<string, string>;
+  defaults: InvestigationOptions;
+  config: { chainLive: boolean; ai: string; aiModel: string | null; sandboxUrl: string; allowedHosts: string[]; searxng: boolean };
+}
+
+export type InvestigationListItem = Investigation & { runCount: number; lastStatus: string | null; lastStats: Record<string, number> | null; topScore: number | null };
+
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function req<T>(url: string, init?: RequestInit): Promise<T> {
+  // Token (jeśli serwer go wymaga) jest w ciasteczku HttpOnly ustawianym przez /api/login.
+  const res = await fetch(url, { credentials: 'same-origin', ...init, headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) } });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError((body as { error?: string; message?: string }).error ?? (body as { message?: string }).message ?? `HTTP ${res.status}`, res.status);
+  return body as T;
+}
+
+export const api = {
+  login: (token: string) => req<{ ok: boolean }>('/api/login', { method: 'POST', body: JSON.stringify({ token }) }),
+  approveHost: (id: string, host: string) => req(`/api/investigations/${id}/approved-hosts`, { method: 'POST', body: JSON.stringify({ host }) }),
+  meta: () => req<Meta>('/api/meta'),
+  list: () => req<InvestigationListItem[]>('/api/investigations'),
+  create: (body: { name: string; caseRef?: string; seeds: { kind: string; value: string }[]; options: Partial<InvestigationOptions>; scheduleMinutes: number | null }) =>
+    req<{ investigation: Investigation; runId: string }>('/api/investigations', { method: 'POST', body: JSON.stringify(body) }),
+  get: (id: string) => req<{ investigation: Investigation; runs: RunRow[] }>(`/api/investigations/${id}`),
+  remove: (id: string) => req<{ ok: boolean }>(`/api/investigations/${id}`, { method: 'DELETE' }),
+  schedule: (id: string, minutes: number | null) => req(`/api/investigations/${id}/schedule`, { method: 'PUT', body: JSON.stringify({ minutes }) }),
+  rerun: (id: string) => req<{ runId: string }>(`/api/investigations/${id}/runs`, { method: 'POST', body: '{}' }),
+  run: (id: string) => req<{ run: RunRow; result: RunResult; investigation: Investigation }>(`/api/runs/${id}`),
+  document: (runId: string, docId: string) => req<{ content: string; url: string; title: string; sha256: string; fetched_at: string }>(`/api/runs/${runId}/documents/${docId}`),
+  compare: (a: string, b: string) => req<CompareResult>(`/api/compare?a=${a}&b=${b}`),
+  extract: (text: string) => req<ExtractResult>('/api/extract', { method: 'POST', body: JSON.stringify({ text }) }),
+  labels: () => req<{ custom: LabelRow[]; seed: LabelRow[] }>('/api/labels'),
+  addLabel: (body: { chain: string; address: string; name: string; category: string; note?: string }) => req('/api/labels', { method: 'POST', body: JSON.stringify(body) }),
+  audit: () => req<{ id: number; ts: string; action: string; detail_json: string }[]>('/api/audit'),
+};
+
+export interface LabelRow {
+  chain: string;
+  address: string;
+  name: string;
+  category: string;
+  origin?: string;
+  synthetic?: boolean;
+  note?: string;
+  added_at?: string;
+}
+
+export interface CompareResult {
+  a: { id: string; seq: number; at: string };
+  b: { id: string; seq: number; at: string };
+  newAddresses: { key: string; chain: string; address: string; score: number; band: string }[];
+  removedAddresses: { key: string; chain: string; address: string; score: number; band: string }[];
+  scoreChanges: { key: string; chain: string; address: string; before: number; after: number }[];
+  pageChanges: { url: string; removed: string[]; added: string[] }[];
+  changedDocs: { url: string; title: string }[];
+  newDocs: { url: string; title: string }[];
+  goneDocs: { url: string; title: string }[];
+  newIdentifiers: { kind: string; value: string }[];
+  newCashOut: { address: string; title: string; detail: string }[];
+}
+
+export interface ExtractResult {
+  matches: { chain: string; address: string; format: string; checksum: string; formatConfidence: string; context: string; notes: string[] }[];
+  rejected: { candidate: string; reason: string }[];
+  identifiers: { kind: string; value: string }[];
+}
+
+export const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('pl-PL') : '—');
+export const fmtNum = (n?: number | null, max = 6) => (n === null || n === undefined ? '—' : n.toLocaleString('pl-PL', { maximumFractionDigits: max }));
+export const shortAddr = (a: string) => (a.length > 18 ? `${a.slice(0, 10)}…${a.slice(-6)}` : a);

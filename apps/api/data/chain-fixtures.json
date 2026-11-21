@@ -1,0 +1,57 @@
+{
+  "_comment": "SYNTETYCZNE dane on-chain dla fikcyjnych adresów z piaskownicy testowej (apps/sandbox). Adresy wygenerowano deterministycznie z sha256 (scripts/gen-synthetic-addresses.ts) – nie należą do nikogo. Hashe transakcji mają prefiks SYN.",
+  "addresses": {
+    "ETH:0xcfe541f7a25c5cd54277d1dc4a2ca6e37626ff4a": {
+      "balance": 0.12,
+      "txs": [
+        { "hash": "SYN-ETH-0001", "time": "2026-02-14T10:21:00Z", "direction": "in", "counterparty": "0x585EA6DAcc2597bB527e9C8DDba7538211a103e2", "asset": "ETH", "amount": 2.5 },
+        { "hash": "SYN-ETH-0002", "time": "2026-02-20T18:02:00Z", "direction": "in", "counterparty": "0x7B431cddF8855cAd9946aB62557E5EE893b92D83", "asset": "ETH", "amount": 1.1 },
+        { "hash": "SYN-ETH-0003", "time": "2026-03-05T09:12:00Z", "direction": "out", "counterparty": "0xE592427A0AEce92De3Edee1F18E0157C05861564", "asset": "ETH", "amount": 2.4, "method": "exactInputSingle" },
+        { "hash": "SYN-ETH-0003", "time": "2026-03-05T09:12:00Z", "direction": "in", "counterparty": "0xE592427A0AEce92De3Edee1F18E0157C05861564", "asset": "USDT", "amount": 8900, "method": "exactInputSingle" },
+        { "hash": "SYN-ETH-0004", "time": "2026-03-06T14:40:00Z", "direction": "out", "counterparty": "0xCABE1938fca02c00B1485ba4c5561D8cDa1aaEAf", "asset": "USDT", "amount": 8800 },
+        { "hash": "SYN-ETH-0005", "time": "2026-04-10T08:00:00Z", "direction": "in", "counterparty": "0x2c5F667DcD6b2638eE0BaEf84eF5Cc48ca46E41F", "asset": "USDT", "amount": 3000 },
+        { "hash": "SYN-ETH-0006", "time": "2026-04-11T11:30:00Z", "direction": "out", "counterparty": "0x640Ce0A2BE62c34091daba4Be1a9355b17F01D1a", "asset": "USDT", "amount": 2950 },
+        { "hash": "SYN-ETH-0007", "time": "2026-05-20T22:15:00Z", "direction": "out", "counterparty": "0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936", "asset": "ETH", "amount": 1.0, "method": "deposit" }
+      ]
+    },
+    "ETH:0x7b431cddf8855cad9946ab62557e5ee893b92d83": {
+      "balance": 0.08,
+      "txs": [
+        { "hash": "SYN-ETH-0101", "time": "2026-01-30T12:00:00Z", "direction": "in", "counterparty": "0x28C6c06298d514Db089934071355E5743bf21d60", "asset": "ETH", "amount": 1.2 },
+        { "hash": "SYN-ETH-0002", "time": "2026-02-20T18:02:00Z", "direction": "out", "counterparty": "0xCfE541F7a25C5cD54277D1Dc4A2Ca6E37626ff4A", "asset": "ETH", "amount": 1.1 }
+      ]
+    },
+    "ETH:0x18b30ed55876d989a6ff02c60ad187f3cda07994": { "balance": 0, "txs": [] },
+    "ETH:0xecd180ba67478be746f54732be67fa8719691e6b": {
+      "balance": 0.4,
+      "txs": [
+        { "hash": "SYN-ETH-0201", "time": "2026-03-01T07:00:00Z", "direction": "in", "counterparty": "0x585EA6DAcc2597bB527e9C8DDba7538211a103e2", "asset": "ETH", "amount": 0.4 }
+      ]
+    },
+    "ETH:0x149bce5c4470a7dd2b62727b8b52d62652b4da60": { "balance": 0, "txs": [] },
+    "BTC:bc1qpgfd4zxrrenlgyxvvlvrqy84a8f2h408fmfakp": {
+      "balance": 0.005,
+      "txs": [
+        { "hash": "SYN-BTC-0001", "time": "2025-11-02T16:00:00Z", "direction": "in", "counterparty": "bc1q2u69r8hvvljlhj83slnl9pca2hf6yjv764sxyy", "asset": "BTC", "amount": 0.01 },
+        { "hash": "SYN-BTC-0002", "time": "2025-12-18T19:30:00Z", "direction": "in", "counterparty": "bc1q2u69r8hvvljlhj83slnl9pca2hf6yjv764sxyy", "asset": "BTC", "amount": 0.02 },
+        { "hash": "SYN-BTC-0003", "time": "2026-02-01T09:45:00Z", "direction": "out", "counterparty": "bc1q3ns7tvydzamwvx050ame2d84l6twh50hhwsun9", "asset": "BTC", "amount": 0.025 }
+      ]
+    },
+    "BTC:bc1q9tuvwnq9s56nhkagcrvrzxhj7dwzfvdnvjufu8": {
+      "balance": 0.0042,
+      "txs": [
+        { "hash": "SYN-BTC-0101", "time": "2026-06-03T13:10:00Z", "direction": "in", "counterparty": "bc1q2u69r8hvvljlhj83slnl9pca2hf6yjv764sxyy", "asset": "BTC", "amount": 0.0042 }
+      ]
+    },
+    "BTC:bc1qfzspkgc3zjlltz2nd32xudvrg38ytx58w9z59w": { "balance": 0, "txs": [] },
+    "TRX:TXLFKvqCJRzYQHsHMYNgtqHVq6VdNqgkSq": {
+      "balance": 12.5,
+      "txs": [
+        { "hash": "SYN-TRX-0001", "time": "2026-03-21T10:00:00Z", "direction": "in", "counterparty": "TUUY5CzAtHpMdQaZqXEU5VM1JAnXUeZiTx", "asset": "USDT", "amount": 5000 },
+        { "hash": "SYN-TRX-0002", "time": "2026-03-21T16:20:00Z", "direction": "out", "counterparty": "TJAAEGDiGaTpBcrrnvwscLiXd4u219B6rN", "asset": "USDT", "amount": 4950 },
+        { "hash": "SYN-TRX-0003", "time": "2026-04-02T09:00:00Z", "direction": "in", "counterparty": "TUUY5CzAtHpMdQaZqXEU5VM1JAnXUeZiTx", "asset": "USDT", "amount": 2200 },
+        { "hash": "SYN-TRX-0004", "time": "2026-04-02T12:45:00Z", "direction": "out", "counterparty": "TJAAEGDiGaTpBcrrnvwscLiXd4u219B6rN", "asset": "USDT", "amount": 2180 }
+      ]
+    }
+  }
+}
