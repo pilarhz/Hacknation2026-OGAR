@@ -105,7 +105,7 @@ Scenariusze uruchamia się jednym kliknięciem w *Nowa analiza → Scenariusze d
                       │ TronGrid             │   │  badanego?) + kontekst        │
                       └──────────┬───────────┘   └───────────────────────────────┘
                                  ▼
-          Wskaźnik Pewności → graf → chronologia → wnioski → raport / JSON / CSV
+          Wskaźnik Pewności → chronologia → wnioski → raport / JSON / CSV
 ```
 
 1. **Wyszukiwanie (BFS).** Każde źródło deklaruje, jakie typy identyfikatorów obsługuje. Dokumenty są deduplikowane po URL.
@@ -121,7 +121,7 @@ Scenariusze uruchamia się jednym kliknięciem w *Nowa analiza → Scenariusze d
 5. **Tożsamość kont** ([`engine/identity.ts`](apps/api/src/engine/identity.ts)). Ten sam nick w dwóch serwisach **nie oznacza** tej samej osoby. Konta (serwis + nick) łączymy w grupy wyłącznie twardymi powiązaniami: jawny odnośnik (profil → strona WWW, ogłoszenie → `t.me/…`), wspólny e-mail/Telegram/telefon, dowód Keybase albo identyfikator z danych wejściowych. Potwierdzona jest grupa zakotwiczona w danych wejściowych, a przy samym nicku – największa grupa ≥ 2 kont z tym nickiem. Konto połączone z badanym tylko zgodnością nicku dostaje karę **R9**. Najlepszą kotwicą jest URL konkretnego profilu, e-mail lub Telegram.
 6. **Kontekst publikacji.** Reguły K1–K8 klasyfikują kontekst według załącznika: profil, ogłoszenie, komunikator, stopka e-mail, forum, giveaway. Ogłoszenie wymaga wyrażenia oferty („sprzedam”, „kupię”, „oferta”, „WTS”) **i** słowa płatności – samo „cena”/„kurs”/„PLN” nie wystarcza. Stopka e-mail tylko w dokumentach będących wiadomością e-mail.
 7. **On-chain i etykiety.** Patrz niżej.
-8. **Wynik.** Wskaźnik Pewności, graf powiązań, chronologia przepływu środków, wnioski do weryfikacji, wykryte podmiany adresów.
+8. **Wynik.** Wskaźnik Pewności, chronologia przepływu środków, wnioski do weryfikacji, wykryte podmiany adresów.
 
 ---
 
@@ -251,7 +251,7 @@ apps/
       sources/         źródła Web2 – wspólny interfejs Source + registry.ts
       chain/           dostawcy blockchain, etykiety, wskaźniki on-chain
       scoring/         kontekst publikacji (K1–K8) + Wskaźnik Pewności (R0–R8, E1–E2)
-      engine/          investigate.ts (BFS/pivot/przypisanie/graf/wnioski), identity.ts (grupy kont),
+      engine/          investigate.ts (BFS/pivot/przypisanie/wnioski), identity.ts (grupy kont),
                        store.ts (przebiegi, harmonogram, porównania)
       ai/              wymienny dostawca AI (API zgodne z OpenAI, domyślnie wyłączony)
       report/          raport HTML
@@ -259,7 +259,7 @@ apps/
       db/              SQLite (node:sqlite), SQL zgodny z PostgreSQL
     data/              labels.json, chain-fixtures.json (syntetyczne)
     test/              node:test – 29 testów
-  web/                 React 19 + Vite, Cytoscape.js (graf)
+  web/                 React 19 + Vite
   sandbox/             syntetyczny "internet" do scenariuszy testowych
 ```
 
@@ -323,7 +323,6 @@ Kod: MIT. Zależności (wszystkie open source):
 | cheerio | 1.2 | MIT |
 | @noble/hashes (keccak-256) | 1.8 | MIT |
 | react, react-dom | 19.3 | MIT |
-| cytoscape | 3.35 | MIT |
 | vite, @vitejs/plugin-react | 6.4 / 4.7 | MIT |
 | typescript | 5.9 | Apache-2.0 |
 | Node.js (`node:sqlite`, `node:test`) | 24 | MIT |

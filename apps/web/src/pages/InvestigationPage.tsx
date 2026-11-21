@@ -1,14 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, fmtDate, fmtNum, shortAddr, SCHEDULES, type CompareResult, type Investigation, type Meta, type RunResult, type RunRow } from '../api.ts';
 import { go } from '../App.tsx';
 import { ScoreBadge, ScoreBar, BAND_SHORT, Chain } from '../components/Score.tsx';
 import { AddressDetail } from '../components/AddressDetail.tsx';
-// cytoscape to większość rozmiaru bundla – ładujemy go dopiero po otwarciu zakładki "Graf".
-const Graph = lazy(() => import('../components/Graph.tsx').then((m) => ({ default: m.Graph })));
 
 const LEVEL_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
-type Tab ='summary' | 'addresses' | 'graph' | 'timeline' | 'sources' | 'compare' | 'log';
+type Tab = 'summary' | 'addresses' | 'timeline' | 'sources' | 'compare' | 'log';
 
 export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
   const [inv, setInv] = useState<Investigation | null>(null);
@@ -184,7 +182,6 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
               [
                 ['summary', 'Podsumowanie', null],
                 ['addresses', 'Adresy', result.addresses.length],
-                ['graph', 'Graf powiązań', null],
                 ['timeline', 'Przepływ środków', result.timeline.length],
                 ['sources', 'Źródła i tożsamość', result.documents.length],
                 ['compare', 'Zmiany w czasie', null],
@@ -212,13 +209,6 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
             />
           )}
           {tab === 'addresses' && <Addresses r={result} meta={meta} selected={selected} setSelected={setSelected} openDoc={openDoc} />}
-          {tab === 'graph' && (
-            <div className="panel">
-              <Suspense fallback={<div className="empty">Ładowanie grafu…</div>}>
-                <Graph graph={result.graph} onSelect={(nid) => { if (nid.startsWith('addr:')) { setSelected(nid.slice(5)); setTab('addresses'); } }} />
-              </Suspense>
-            </div>
-          )}
           {tab === 'timeline' && <Timeline r={result} meta={meta} />}
           {tab === 'sources' && <Sources r={result} openDoc={openDoc} />}
           {tab === 'compare' && <Compare runs={runs.filter((r) => r.status === 'done')} current={runId!} />}
