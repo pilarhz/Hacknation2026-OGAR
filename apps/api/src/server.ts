@@ -1,4 +1,4 @@
-// REST API OŁCyŚ + serwowanie zbudowanego frontendu (apps/web/dist).
+// REST API OGAR + serwowanie zbudowanego frontendu (apps/web/dist).
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
@@ -38,7 +38,7 @@ await app.register(cors, { origin: [/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/
 // Token przyjmujemy w nagłówku X-Api-Token albo w ciasteczku HttpOnly ustawianym przez /api/login –
 // NIGDY w adresie URL (trafiałby do logów i historii przeglądarki).
 const API_TOKEN = process.env.API_TOKEN;
-const COOKIE = 'olcys_token';
+const COOKIE = 'ogar_token';
 const tokenOk = (v: unknown) => {
   if (!API_TOKEN || typeof v !== 'string') return false;
   const a = Buffer.from(v);
@@ -175,7 +175,7 @@ app.get<{ Params: { id: string } }>('/api/runs/:id/export.json', async (req, rep
   if (!r) return reply.code(404).send({ error: 'Brak przebiegu' });
   audit('export.json', { runId: req.params.id });
   return reply
-    .header('Content-Disposition', `attachment; filename="olcys-${r.investigation.name.replace(/[^\w-]+/g, '_')}-run${r.run.seq}.json"`)
+    .header('Content-Disposition', `attachment; filename="ogar-${r.investigation.name.replace(/[^\w-]+/g, '_')}-run${r.run.seq}.json"`)
     .type('application/json')
     .send(JSON.stringify({ investigation: r.investigation, run: r.run, result: r.result }, null, 2));
 });
@@ -191,7 +191,7 @@ app.get<{ Params: { id: string } }>('/api/runs/:id/export.csv', async (req, repl
         .map(q)
         .join(';'),
     );
-  return reply.header('Content-Disposition', `attachment; filename="olcys-run${r.run.seq}.csv"`).type('text/csv; charset=utf-8').send('﻿' + rows.join('\r\n'));
+  return reply.header('Content-Disposition', `attachment; filename="ogar-run${r.run.seq}.csv"`).type('text/csv; charset=utf-8').send('﻿' + rows.join('\r\n'));
 });
 
 app.get<{ Params: { id: string; docId: string } }>('/api/runs/:id/documents/:docId', async (req, reply) => {
@@ -235,4 +235,4 @@ if (existsSync(webDist)) {
 
 startScheduler();
 await app.listen({ port: config.port, host: config.host });
-app.log.info(`OŁCyŚ API: http://${config.host}:${config.port}  (piaskownica: ${config.sandboxUrl})`);
+app.log.info(`OGAR API: http://${config.host}:${config.port}  (piaskownica: ${config.sandboxUrl})`);

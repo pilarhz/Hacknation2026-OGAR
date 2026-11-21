@@ -87,3 +87,11 @@ export interface ExtractResult {
 export const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('pl-PL') : '—');
 export const fmtNum = (n?: number | null, max = 6) => (n === null || n === undefined ? '—' : n.toLocaleString('pl-PL', { maximumFractionDigits: max }));
 export const shortAddr = (a: string) => (a.length > 18 ? `${a.slice(0, 10)}…${a.slice(-6)}` : a);
+export const SCHEDULES: [number, string][] = [
+  [0, 'ręcznie'],
+  [1, 'co 1 min (demo)'],
+  [60, 'co godzinę'],
+  [1440, 'codziennie'],
+  [10080, 'co tydzień'],
+];
+export const fmtSchedule = (m?: number | null) => (!m ? 'ręcznie' : (SCHEDULES.find(([v]) => v === m)?.[1] ?? `co ${m} min`));

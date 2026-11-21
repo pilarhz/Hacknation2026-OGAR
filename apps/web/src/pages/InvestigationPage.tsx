@@ -1,12 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { api, fmtDate, fmtNum, shortAddr, type CompareResult, type Investigation, type Meta, type RunResult, type RunRow } from '../api.ts';
+import { api, fmtDate, fmtNum, shortAddr, SCHEDULES, type CompareResult, type Investigation, type Meta, type RunResult, type RunRow } from '../api.ts';
 import { go } from '../App.tsx';
-import { ScoreBadge, ScoreBar, BAND_SHORT } from '../components/Score.tsx';
+import { ScoreBadge, ScoreBar, BAND_SHORT, Chain } from '../components/Score.tsx';
 import { AddressDetail } from '../components/AddressDetail.tsx';
 // cytoscape to większość rozmiaru bundla – ładujemy go dopiero po otwarciu zakładki "Graf".
 const Graph = lazy(() => import('../components/Graph.tsx').then((m) => ({ default: m.Graph })));
 
-type Tab = 'summary' | 'addresses' | 'graph' | 'timeline' | 'sources' | 'compare' | 'log';
+const LEVEL_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+type Tab ='summary' | 'addresses' | 'graph' | 'timeline' | 'sources' | 'compare' | 'log';
 
 export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
   const [inv, setInv] = useState<Investigation | null>(null);
@@ -76,106 +78,122 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
     }
   };
 
+  const latestSeq = runs[0]?.seq;
   return (
     <>
-      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <a href="#/" className="small">
-            ← Analizy
+      <div className="page-head" style={{ marginBottom: 14 }}>
+        <div style={{ minWidth: 0 }}>
+          <a href="#/" className="crumb">
+            ← Wszystkie analizy
           </a>
+          <div className="eyebrow">{inv.caseRef ? <>Sprawa <b>{inv.caseRef}</b></> : 'Analiza OSINT'}</div>
           <h1>{inv.name}</h1>
-          <div className="row small">
-            {inv.caseRef && <span className="tag blue">{inv.caseRef}</span>}
+          <div className="row small" style={{ gap: 6 }}>
+            <span className="muted">Dane wejściowe:</span>
             {inv.seeds.map((s, i) => (
               <span key={i} className="tag">
                 {meta.identifierKinds.find((k) => k.id === s.kind)?.label}: <b>{s.value}</b>
               </span>
             ))}
-            <span className="muted">źródła: {inv.options.sources.join(', ')} · pivot {inv.options.maxDepth}</span>
           </div>
         </div>
-        <div className="row">
-          <label className="field">
-            Analiza cykliczna
-            <select
-              value={inv.scheduleMinutes ?? 0}
-              onChange={async (e) => {
-                await api.schedule(inv.id, Number(e.target.value) || null);
-                load();
-              }}
-            >
-              <option value={0}>ręcznie</option>
-              <option value={1}>co 1 min (demo)</option>
-              <option value={60}>co godzinę</option>
-              <option value={1440}>codziennie</option>
-              <option value={10080}>co tydzień</option>
-            </select>
-          </label>
-          <button className="primary" onClick={rerun} disabled={anyRunning}>
-            ↻ Uruchom ponownie
-          </button>
+        <div className="actions">
           {result && runId && (
-            <>
-              <a className="btn" href={`/api/runs/${runId}/report.html`} target="_blank" rel="noreferrer">
-                📄 Raport
-              </a>
-              <a className="btn" href={`/api/runs/${runId}/export.json`}>
-                JSON
-              </a>
-              <a className="btn" href={`/api/runs/${runId}/export.csv`}>
-                CSV
-              </a>
-            </>
+            <a className="btn" href={`/api/runs/${runId}/report.html`} target="_blank" rel="noreferrer">
+              Raport OSINT ↗
+            </a>
           )}
-          <button
-            className="danger"
-            onClick={async () => {
-              if (confirm('Usunąć analizę wraz z wszystkimi przebiegami i zapisanymi dokumentami?')) {
-                await api.remove(inv.id);
-                go('/');
-              }
-            }}
-          >
-            Usuń
+          <button className="primary" onClick={rerun} disabled={anyRunning}>
+            {anyRunning ? 'Trwa analiza…' : '↻ Uruchom ponownie'}
           </button>
+          <details className="menu">
+            <summary className="btn" aria-label="Więcej akcji">⋯</summary>
+            <div className="menu-list">
+              {result && runId && (
+                <>
+                  <a href={`/api/runs/${runId}/export.json`}>Eksport JSON</a>
+                  <a href={`/api/runs/${runId}/export.csv`}>Eksport CSV</a>
+                  <hr />
+                </>
+              )}
+              <button
+                className="danger"
+                onClick={async () => {
+                  if (confirm('Usunąć analizę wraz z wszystkimi przebiegami i zapisanymi dokumentami?')) {
+                    await api.remove(inv.id);
+                    go('/');
+                  }
+                }}
+              >
+                Usuń analizę…
+              </button>
+            </div>
+          </details>
         </div>
       </div>
 
-      <div className="panel" style={{ padding: '10px 14px', marginTop: 12 }}>
-        <div className="row small">
-          <b>Przebiegi:</b>
-          {runs.map((r) => (
-            <button key={r.id} onClick={() => setRunId(r.id)} className={r.id === runId ? 'primary' : ''} style={{ padding: '3px 10px' }}>
-              #{r.seq} {r.status === 'running' ? '⏳' : r.status === 'error' ? '⚠' : ''} {fmtDate(r.startedAt).slice(0, 17)} {r.trigger === 'schedule' ? '⏱' : ''}
-            </button>
-          ))}
-          {inv.scheduleMinutes && <span className="muted">następny: {fmtDate(inv.nextRunAt)}</span>}
-        </div>
+      <div className="panel row" style={{ padding: '10px 16px', gap: 20 }}>
+        <label className="row small" style={{ gap: 8 }}>
+          <span className="muted">Przebieg</span>
+          <select value={runId ?? ''} onChange={(e) => setRunId(e.target.value)}>
+            {runs.map((r) => (
+              <option key={r.id} value={r.id}>
+                #{r.seq} · {fmtDate(r.startedAt).slice(0, 17)}
+                {r.trigger === 'schedule' ? ' · cykliczny' : ''}
+                {r.status === 'running' ? ' · trwa…' : r.status === 'error' ? ' · błąd' : ''}
+                {r.seq === latestSeq ? ' (najnowszy)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="row small" style={{ gap: 8 }}>
+          <span className="muted">Analiza cykliczna</span>
+          <select
+            value={inv.scheduleMinutes ?? 0}
+            onChange={async (e) => {
+              await api.schedule(inv.id, Number(e.target.value) || null);
+              load();
+            }}
+          >
+            {SCHEDULES.map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+        </label>
+        {inv.scheduleMinutes ? <span className="small muted">następny przebieg: {fmtDate(inv.nextRunAt)}</span> : null}
+        <span className="small muted" style={{ marginLeft: 'auto' }}>
+          źródła: {inv.options.sources.join(', ')} · głębokość pivotu {inv.options.maxDepth}
+        </span>
       </div>
 
       {currentRun?.status === 'running' && (
         <div className="panel progress">
-          <div className="spinner" /> Trwa analiza… <span className="muted small">{currentRun.progress}</span>
+          <div className="spinner" />
+          <div>
+            <b>Trwa analiza…</b>
+            <div className="muted small">{currentRun.progress}</div>
+          </div>
         </div>
       )}
       {currentRun?.status === 'error' && <div className="callout red">Przebieg zakończony błędem: {currentRun.error}</div>}
 
       {result && (
         <>
-          <div className="tabs">
+          <div className="tabs" role="tablist">
             {(
               [
-                ['summary', 'Podsumowanie'],
-                ['addresses', `Adresy (${result.addresses.length})`],
-                ['graph', 'Graf powiązań'],
-                ['timeline', `Przepływ środków (${result.timeline.length})`],
-                ['sources', `Źródła (${result.documents.length})`],
-                ['compare', 'Zmiany w czasie'],
-                ['log', 'Rejestr zapytań'],
-              ] as [Tab, string][]
-            ).map(([t, l]) => (
-              <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+                ['summary', 'Podsumowanie', null],
+                ['addresses', 'Adresy', result.addresses.length],
+                ['graph', 'Graf powiązań', null],
+                ['timeline', 'Przepływ środków', result.timeline.length],
+                ['sources', 'Źródła i tożsamość', result.documents.length],
+                ['compare', 'Zmiany w czasie', null],
+                ['log', 'Rejestr zapytań', result.requestLog.length],
+              ] as [Tab, string, number | null][]
+            ).map(([t, l, c]) => (
+              <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
                 {l}
+                {c !== null && <span className="count">{c}</span>}
               </button>
             ))}
           </div>
@@ -234,6 +252,7 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
   const s = r.stats;
   const top = r.addresses.filter((a) => !a.score.excluded && a.score.score >= 40);
   const skipped = r.skippedUrls ?? [];
+  const best = top.reduce<(typeof top)[number] | null>((m, a) => (!m || a.score.score > m.score.score ? a : m), null);
   return (
     <>
       {skipped.length > 0 && (
@@ -261,46 +280,104 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
           </table>
         </div>
       )}
-      {r.documents.some((d) => d.synthetic) && <div className="callout warn small">Przebieg zawiera dane z piaskownicy testowej (fikcyjne osoby, adresy i transakcje).</div>}
-      <div className="kpis" style={{ marginBottom: 16 }}>
-        <div className="kpi"><b>{s.identifiers}</b><span>identyfikatorów (wejście + pivot)</span></div>
-        <div className="kpi"><b>{s.documents}</b><span>przeanalizowanych dokumentów</span></div>
-        <div className="kpi"><b>{s.addresses}</b><span>poprawnych adresów krypto</span></div>
-        <div className="kpi"><b style={{ color: 'var(--vh)' }}>{s.attributed}</b><span>przypisanych badanemu (≥40%)</span></div>
-        <div className="kpi"><b>{s.excluded}</b><span>wykluczonych (giełdy, kontrakty…)</span></div>
-        <div className="kpi"><b style={{ color: '#991b1b' }}>{s.cashOutSignals}</b><span>sygnałów wyjścia do fiat</span></div>
-        <div className="kpi"><b>{(s.durationMs / 1000).toFixed(1)} s</b><span>czas analizy · {s.requests} zapytań</span></div>
-      </div>
-      <div className="grid2">
-        <div className="panel">
-          <h3>Adresy powiązane z badanym</h3>
-          {top.length === 0 && <div className="muted">Brak adresów z wynikiem ≥ 40%.</div>}
-          <table>
-            <tbody>
-              {top.map((a) => (
-                <tr key={a.key} className="clickable" onClick={() => onPick(a.key)}>
-                  <td style={{ width: 70 }}><ScoreBadge score={a.score.score} band={a.score.band} /></td>
-                  <td>
-                    <span className="mono"><b>{a.chain}</b> {shortAddr(a.address)}</span>
-                    <div className="small muted">{BAND_SHORT[a.score.band]} · {a.score.independentSites.length} źr. niezależne</div>
-                  </td>
-                  <td>{a.indicators.filter((i) => i.cashOut).map((i) => <span key={i.code} className="tag cash">💶 {i.code}</span>)}{a.indicators.some((i) => i.code === 'MIXER') && <span className="tag cash">mikser</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {r.documents.some((d) => d.synthetic) && (
+        <div className="callout warn small">
+          <b>Dane testowe.</b> Przebieg zawiera dane z piaskownicy (fikcyjne osoby, adresy i transakcje).
         </div>
-        <div className="panel">
-          <h3>Wnioski wymagające weryfikacji</h3>
-          {r.conclusions.length === 0 && <div className="muted">Brak.</div>}
-          {r.conclusions.map((c, i) => (
-            <div key={i} className="conclusion">
+      )}
+
+      <div className="doc-h"><span className="n">1.</span> Wniosek główny</div>
+      {best ? (
+        <div className="verdict">
+          <div className="big">{best.score.score}%</div>
+          <div>
+            <div className="label">Wskaźnik Pewności · {BAND_SHORT[best.score.band]}</div>
+            <p className="sentence">
+              Adres <Chain chain={best.chain} />
+              <span className="mono nowrap" style={{ fontSize: 15 }} title={best.address}>{shortAddr(best.address)}</span> należy do badanego z pewnością{' '}
+              <b className={`t-${best.score.band}`}>{best.score.score}%</b>, potwierdzoną w {best.score.independentSites.length} niezależnych źródłach.
+              {s.cashOutSignals > 0 ? (
+                <>
+                  {' '}Wykryto <b style={{ color: 'var(--danger)' }}>{s.cashOutSignals} sygnałów wyjścia do walut tradycyjnych</b>.
+                </>
+              ) : (
+                ' Nie wykryto sygnałów wyjścia do walut tradycyjnych.'
+              )}
+            </p>
+            <button className="sm" style={{ marginTop: 12 }} onClick={() => onPick(best.key)}>Zobacz dowody i wyliczenie →</button>
+          </div>
+        </div>
+      ) : (
+        <div className="verdict neutral">
+          <div className="big">—</div>
+          <div>
+            <div className="label">Brak przypisania</div>
+            <p className="sentence">Żaden adres nie osiągnął Wskaźnika Pewności ≥ 40%.</p>
+            <p>Sprawdź źródła i odrzuconych kandydatów lub zwiększ głębokość pivotu.</p>
+          </div>
+        </div>
+      )}
+
+      <div className="doc-h"><span className="n">2.</span> Kluczowe liczby</div>
+      <div className="kpis">
+        <div className="kpi good"><b>{s.attributed}</b><span>adresów przypisanych badanemu (≥40%)</span></div>
+        <div className={`kpi ${s.cashOutSignals > 0 ? 'alert' : ''}`}><b>{s.cashOutSignals}</b><span>sygnałów wyjścia do fiat</span></div>
+        <div className="kpi"><b>{s.excluded}</b><span>wykluczonych (giełdy, kontrakty…)</span></div>
+        <div className="kpi"><b>{s.addresses}</b><span>poprawnych adresów znalezionych</span></div>
+      </div>
+      <div className="meta-line">
+        <span><b>{s.identifiers}</b> identyfikatorów (wejście + pivot)</span>
+        <span><b>{s.documents}</b> przeanalizowanych dokumentów</span>
+        <span><b>{s.requests}</b> zapytań sieciowych</span>
+        <span>czas analizy <b>{(s.durationMs / 1000).toFixed(1)} s</b></span>
+      </div>
+
+      <div className="doc-h">
+        <span className="n">3.</span> Adresy powiązane z badanym <span className="aside">kliknij wiersz, aby zobaczyć dowody</span>
+      </div>
+      <div className="panel flush">
+        {top.length === 0 ? (
+          <div className="empty">Brak adresów z wynikiem ≥ 40%.</div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th style={{ width: 80 }}>Pewność</th><th>Adres</th><th>Przedział</th><th>Źródła</th><th>Sygnały on-chain</th></tr>
+              </thead>
+              <tbody>
+                {top.map((a) => (
+                  <tr key={a.key} className="clickable" onClick={() => onPick(a.key)}>
+                    <td><ScoreBadge score={a.score.score} band={a.score.band} /></td>
+                    <td className="addr-cell"><Chain chain={a.chain} /><span className="mono" title={a.address}>{shortAddr(a.address)}</span></td>
+                    <td><span className={`band-label t-${a.score.band}`}>{BAND_SHORT[a.score.band]}</span></td>
+                    <td className="small">{a.score.independentSites.length} niezależne</td>
+                    <td>
+                      {a.indicators.filter((i) => i.cashOut).map((i) => <span key={i.code} className="tag cash">{i.code}</span>)}
+                      {a.indicators.some((i) => i.code === 'MIXER') && <span className="tag cash">mikser</span>}
+                      {!a.indicators.some((i) => i.cashOut || i.code === 'MIXER') && <span className="muted small">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="doc-h">
+        <span className="n">4.</span> Wnioski wymagające weryfikacji <span className="aside">{r.conclusions.length} pozycji · od najważniejszych</span>
+      </div>
+      <div className="panel flush">
+        {r.conclusions.length === 0 && <div className="empty">Brak wniosków.</div>}
+        {[...r.conclusions]
+          .sort((x, y) => LEVEL_ORDER[x.level] - LEVEL_ORDER[y.level])
+          .map((c, i) => (
+            <div key={i} className={`conclusion ${c.level}`}>
               <span className={`lvl ${c.level}`}>{c.level === 'high' ? 'istotne' : c.level === 'medium' ? 'średnie' : 'info'}</span>
               {c.text}
-              <div className="small muted">Do weryfikacji: {c.verify}</div>
+              <div className="verify"><b>Do weryfikacji:</b> {c.verify}</div>
             </div>
           ))}
-        </div>
       </div>
       {r.swaps.length > 0 && (
         <div className="panel callout warn">
@@ -323,28 +400,36 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
 function Addresses({ r, meta, selected, setSelected, openDoc }: { r: RunResult; meta: Meta; selected: string | null; setSelected: (k: string | null) => void; openDoc: (d: string) => void }) {
   const [filter, setFilter] = useState<'all' | 'attributed' | 'excluded'>('all');
   const list = r.addresses.filter((a) => (filter === 'all' ? true : filter === 'excluded' ? a.score.excluded : !a.score.excluded && a.score.score >= 40));
-  const sel = r.addresses.find((a) => a.key === selected);
+  const sel = r.addresses.find((a) => a.key === selected) ?? list[0];
+  const counts = {
+    all: r.addresses.length,
+    attributed: r.addresses.filter((a) => !a.score.excluded && a.score.score >= 40).length,
+    excluded: r.addresses.filter((a) => a.score.excluded).length,
+  };
   return (
-    <div className="grid2" style={{ gridTemplateColumns: '440px 1fr' }}>
-      <div className="panel flush">
-        <div className="row" style={{ padding: 10 }}>
-          {(['all', 'attributed', 'excluded'] as const).map((f) => (
-            <button key={f} className={filter === f ? 'primary' : ''} onClick={() => setFilter(f)} style={{ padding: '3px 10px' }}>
-              {f === 'all' ? 'wszystkie' : f === 'attributed' ? 'przypisane' : 'wykluczone'}
-            </button>
-          ))}
+    <div className="addr-layout">
+      <div className="panel flush table-wrap">
+        <div className="panel-head">
+          <div className="seg" role="group" aria-label="Filtr adresów">
+            {(['all', 'attributed', 'excluded'] as const).map((f) => (
+              <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>
+                {f === 'all' ? 'Wszystkie' : f === 'attributed' ? 'Przypisane' : 'Wykluczone'} {counts[f]}
+              </button>
+            ))}
+          </div>
         </div>
+        {list.length === 0 && <div className="empty">Brak adresów w tej kategorii.</div>}
         <table>
           <tbody>
             {list.map((a) => (
-              <tr key={a.key} className={`clickable ${a.key === selected ? 'selected' : ''}`} onClick={() => setSelected(a.key)}>
-                <td style={{ width: 64 }}><ScoreBadge score={a.score.score} band={a.score.band} /></td>
-                <td>
-                  <div className="mono"><b>{a.chain}</b> {shortAddr(a.address)}</div>
+              <tr key={a.key} className={`clickable ${a.key === sel?.key ? 'selected' : ''}`} onClick={() => setSelected(a.key)}>
+                <td style={{ width: 70 }}><ScoreBadge score={a.score.score} band={a.score.band} /></td>
+                <td className="addr-cell">
+                  <div><Chain chain={a.chain} /><span className="mono" title={a.address}>{shortAddr(a.address)}</span></div>
                   <ScoreBar score={a.score.score} band={a.score.band} />
                   <div className="small muted">
-                    {a.label ? a.label.name : BAND_SHORT[a.score.band]} · {a.evidence.length} wystąp.
-                    {a.indicators.some((i) => i.cashOut) && <span className="tag cash">💶</span>}
+                    {a.label ? <b style={{ color: 'var(--ink-2)' }}>{a.label.name}</b> : BAND_SHORT[a.score.band]} · {a.evidence.length} wystąp.
+                    {a.indicators.some((i) => i.cashOut) && <> <span className="tag cash">cash-out</span></>}
                   </div>
                 </td>
               </tr>
@@ -352,16 +437,16 @@ function Addresses({ r, meta, selected, setSelected, openDoc }: { r: RunResult; 
           </tbody>
         </table>
       </div>
-      <div className="panel">{sel ? <AddressDetail a={sel} meta={meta} onOpenDoc={openDoc} /> : <div className="empty">Wybierz adres z listy, aby zobaczyć dowody, wyliczenie Wskaźnika Pewności i aktywność on-chain.</div>}</div>
+      <div className="panel detail">{sel ? <AddressDetail a={sel} meta={meta} onOpenDoc={openDoc} /> : <div className="empty">Wybierz adres z listy, aby zobaczyć dowody, wyliczenie Wskaźnika Pewności i aktywność on-chain.</div>}</div>
     </div>
   );
 }
 
 function Timeline({ r, meta }: { r: RunResult; meta: Meta }) {
   return (
-    <div className="panel flush">
+    <div className="panel flush table-wrap">
       <div style={{ padding: '10px 14px' }} className="small muted">
-        Chronologiczny przepływ środków na adresach przypisanych badanemu (≥40%). Wiersze 💶 wskazują możliwe wyjście do walut tradycyjnych.
+        Chronologiczny przepływ środków na adresach przypisanych badanemu (≥40%). Wiersze oznaczone „cash-out” wskazują możliwe wyjście do walut tradycyjnych.
       </div>
       <table>
         <thead>
@@ -369,14 +454,14 @@ function Timeline({ r, meta }: { r: RunResult; meta: Meta }) {
         </thead>
         <tbody>
           {r.timeline.map((t, i) => (
-            <tr key={i} style={t.cashOut ? { background: '#fef2f2' } : undefined}>
-              <td className="small">{fmtDate(t.time)}</td>
-              <td className="mono small"><b>{t.chain}</b> {shortAddr(t.address)}</td>
+            <tr key={i} className={t.cashOut ? 'cashout' : undefined}>
+              <td className="small nowrap">{fmtDate(t.time)}</td>
+              <td className="addr-cell small"><Chain chain={t.chain} /><span className="mono">{shortAddr(t.address)}</span></td>
               <td>{t.direction === 'in' ? '⬅ wpływ' : t.direction === 'out' ? '➡ wypływ' : '↺'}</td>
               <td><b>{fmtNum(t.amount)}</b> {t.asset}</td>
               <td className="small">
                 {t.counterpartyLabel ? <><b>{t.counterpartyLabel}</b> <span className="tag">{meta.categories[t.counterpartyCategory ?? ''] ?? t.counterpartyCategory}</span></> : <span className="mono">{t.counterparty ? shortAddr(t.counterparty) : '—'}</span>}
-                {t.cashOut && <span className="tag cash">💶 cash-out</span>}
+                {t.cashOut && <span className="tag cash">cash-out</span>}
               </td>
               <td className="mono small muted">{t.hash.slice(0, 16)} {t.synthetic && <span className="tag syn">syn.</span>}</td>
             </tr>
@@ -391,7 +476,7 @@ function Timeline({ r, meta }: { r: RunResult; meta: Meta }) {
 function Sources({ r, openDoc }: { r: RunResult; openDoc: (d: string) => void }) {
   return (
     <>
-      <div className="panel flush">
+      <div className="panel flush table-wrap">
         <table>
           <thead>
             <tr><th>Dok.</th><th>Źródło / tytuł</th><th>Typ</th><th>Autor</th><th>Należy do badanego</th><th>Adresy</th><th>Pobrano / SHA-256</th></tr>
@@ -528,7 +613,7 @@ function Compare({ runs, current }: { runs: RunRow[]; current: string }) {
 
 function Log({ r }: { r: RunResult }) {
   return (
-    <div className="panel flush">
+    <div className="panel flush table-wrap">
       <div style={{ padding: '10px 14px' }} className="small muted">
         Wszystkie zapytania sieciowe przebiegu (biała lista hostów: {String(r.configSnapshot.allowedHosts ?? '').split(',').length} pozycji). Silnik v{r.engineVersion}, {fmtDate(r.startedAt)} – {fmtDate(r.finishedAt)}.
       </div>

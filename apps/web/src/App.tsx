@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type Meta } from './api.ts';
+import { useTheme, type ThemeChoice } from './theme.ts';
 
 function Login({ onDone }: { onDone: () => void }) {
   const [token, setToken] = useState('');
@@ -53,6 +54,7 @@ export function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
+  const { choice, setChoice } = useTheme();
   const loadMeta = () =>
     api
       .meta()
@@ -71,45 +73,73 @@ export function App() {
   if (needLogin) page = <Login onDone={loadMeta} />;
   else if (!meta) page = err ? <div className="panel callout red">Brak połączenia z API ({err}). Uruchom backend: <code>npm run dev</code>.</div> : <div className="empty">Ładowanie…</div>;
   else if (parts[0] === 'new') page = <NewPage meta={meta} />;
-  else if (parts[0] === 'inv' && parts[1]) page = <InvestigationPage id={parts[1]} meta={meta} />;
+  else if (parts[0] === 'inv' && parts[1]) page = <InvestigationPage key={parts[1]} id={parts[1]} meta={meta} />;
   else if (parts[0] === 'extract') page = <ExtractorPage />;
   else if (parts[0] === 'labels') page = <LabelsPage meta={meta} />;
   else if (parts[0] === 'method') page = <MethodPage meta={meta} />;
   else page = <ListPage />;
 
-  const nav = [
-    ['/', 'Analizy'],
-    ['/new', 'Nowa analiza'],
-    ['/extract', 'Ekstraktor adresów'],
-    ['/labels', 'Etykiety adresów'],
-    ['/method', 'Metodyka'],
-  ];
+  const isActive = (href: string) => (href === '/' ? parts.length === 0 || parts[0] === 'inv' : path.startsWith(href));
+  const link = (href: string, label: string, icon: React.ReactNode, cls = '') => (
+    <a key={href} href={`#${href}`} className={`${cls} ${isActive(href) ? 'active' : ''}`} aria-current={isActive(href) ? 'page' : undefined}>
+      {icon}
+      {label}
+    </a>
+  );
   return (
-    <>
-      <header className="topbar">
-        <div className="brand">
-          <span style={{ fontSize: 26 }}>🦉</span>
-          <div>
-            OŁCyŚ<br />
-            <small>Osintowy Łapacz Cyfrowych Śladów</small>
-          </div>
-        </div>
-        <nav className="nav">
-          {nav.map(([href, label]) => (
-            <a key={href} href={`#${href}`} className={(href === '/' ? parts.length === 0 || parts[0] === 'inv' : path.startsWith(href)) ? 'active' : ''}>
-              {label}
-            </a>
-          ))}
+    <div className="shell">
+      <aside className="sidebar">
+        <a className="brand" href="#/">
+          <img className="brand-logo" src="/ogar.svg" alt="" aria-hidden />
+          <span>
+            <b>OGAR</b>
+            <small>OSINTowy Gończy Adresów i Rejestrów</small>
+          </span>
+        </a>
+        <nav className="nav" aria-label="Główna nawigacja">
+          {link('/new', 'Nowa analiza', <Icon d="M12 5v14M5 12h14" />, 'cta')}
+          <div className="nav-group">Sprawy</div>
+          {link('/', 'Analizy', <Icon d="M3 7h18M3 12h18M3 17h12" />)}
+          <div className="nav-group">Narzędzia</div>
+          {link('/extract', 'Ekstraktor adresów', <Icon d="M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3" />)}
+          {link('/labels', 'Etykiety adresów', <Icon d="M3 12V4h8l10 10-8 8L3 12zM7.5 7.5h.01" />)}
+          <div className="nav-group">Pomoc</div>
+          {link('/method', 'Metodyka', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 17v.01M12 14a2.5 2.5 0 10-2.5-2.5" />)}
         </nav>
-        <div className="spacer" />
         {meta && (
-          <div className="row small">
-            <span className="pill">on-chain: {meta.config.chainLive ? 'publiczne API' : 'wyłączone'}</span>
-            <span className="pill">AI: {meta.config.ai === 'none' ? 'wyłączone' : meta.config.aiModel}</span>
+          <div className="side-foot">
+            <div className="status"><span className={`dot ${meta.config.chainLive ? 'on' : ''}`} />on-chain: {meta.config.chainLive ? 'publiczne API' : 'wyłączone'}</div>
+            <div className="status"><span className={`dot ${meta.config.ai === 'none' ? '' : 'on'}`} />AI: {meta.config.ai === 'none' ? 'wyłączone' : meta.config.aiModel}</div>
           </div>
         )}
-      </header>
-      <main className="container">{page}</main>
-    </>
+        <div className="side-foot" style={meta ? { marginTop: 8, borderTop: 'none', paddingTop: 0 } : undefined}>
+          <span>Motyw</span>
+          <div className="seg" role="radiogroup" aria-label="Motyw interfejsu">
+            {(
+              [
+                ['light', 'Jasny'],
+                ['dark', 'Ciemny'],
+                ['system', 'Auto'],
+              ] as [ThemeChoice, string][]
+            ).map(([v, l]) => (
+              <button key={v} role="radio" aria-checked={choice === v} className={choice === v ? 'active' : ''} onClick={() => setChoice(v)} title={v === 'system' ? 'Według ustawień systemu' : undefined}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+      </aside>
+      <main className="main">
+        <div className="container">{page}</div>
+      </main>
+    </div>
+  );
+}
+
+function Icon({ d }: { d: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={d} />
+    </svg>
   );
 }

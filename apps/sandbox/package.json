@@ -1,10 +1,10 @@
 {
-  "name": "@olcys/sandbox",
+  "name": "@ogar/sandbox",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Syntetyczny 'internet' do scenariuszy testowych OŁCyŚ (fikcyjne fora, ogłoszenia P2P, profile).",
+  "description": "Syntetyczny 'internet' do scenariuszy testowych OGAR (fikcyjne fora, ogłoszenia P2P, profile).",
   "scripts": {
     "start": "node server.ts"
   }

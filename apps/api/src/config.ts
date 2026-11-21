@@ -25,7 +25,7 @@ const list = (k: string, d: string) => env(k, d).split(',').map((s) => s.trim())
 export const config = {
   port: Number(env('PORT', '8080')),
   host: env('HOST', '127.0.0.1'),
-  dbPath: env('DB_PATH', path.join(API_ROOT, 'data', 'olcys.db')),
+  dbPath: env('DB_PATH', path.join(API_ROOT, 'data', 'ogar.db')),
   /** Adres syntetycznego "internetu" do scenariuszy testowych. */
   sandboxUrl: env('SANDBOX_URL', 'http://127.0.0.1:4100'),
   /** Źródła włączone domyślnie (można nadpisać per analiza). */
@@ -53,7 +53,7 @@ export const config = {
    * obowiązuje tylko w danym przebiegu). Strony ujawnione w pivocie zawsze wymagają zatwierdzenia hosta.
    */
   allowUserUrls: env('ALLOW_USER_URLS', 'true') === 'true',
-  userAgent: env('USER_AGENT', 'OLCyS-OSINT-research/0.1 (+public-sources-only)'),
+  userAgent: env('USER_AGENT', 'OGAR-OSINT-research/0.1 (+public-sources-only)'),
   requestTimeoutMs: Number(env('REQUEST_TIMEOUT_MS', '12000')),
   perHostDelayMs: Number(env('PER_HOST_DELAY_MS', '400')),
   cacheTtlMinutes: Number(env('CACHE_TTL_MINUTES', '30')),

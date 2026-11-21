@@ -1,8 +1,8 @@
 {
-  "name": "olcys",
+  "name": "ogar",
   "version": "0.1.0",
   "private": true,
-  "description": "OŁCyŚ – Osintowy Łapacz Cyfrowych Śladów. Narzędzie OSINT łączące ślady Web2 z adresami kryptowalutowymi (HackNation 2026, zadanie MF/KAS).",
+  "description": "OGAR – OSINTowy Gończy Adresów i Rejestrów. Narzędzie OSINT łączące ślady Web2 z adresami kryptowalutowymi (HackNation 2026, zadanie MF/KAS).",
   "license": "MIT",
   "workspaces": [
     "apps/api",

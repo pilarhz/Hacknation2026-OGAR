@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, fmtDate, fmtNum, type AddressResult, type Meta } from '../api.ts';
+import { Chain, ScoreBadge } from './Score.tsx';
 
 function Highlight({ text, needle }: { text: string; needle: string }) {
   const i = text.toLowerCase().indexOf(needle.toLowerCase());
@@ -21,12 +22,13 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
   const oc = a.onchain;
   return (
     <div>
-      <div className="row between">
-        <div>
-          <div className="mono" style={{ fontSize: 14 }}>
-            <b>{a.chain}</b> {a.address}
+      <div className="row between" style={{ alignItems: "flex-start" }}>
+        <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+          <div className="row" style={{ gap: 8, marginBottom: 6 }}><ScoreBadge score={a.score.score} band={a.score.band} /><Chain chain={a.chain} /><span className="small muted">{a.score.bandLabel}</span></div>
+          <div className="addr-full">
+            {a.address}
           </div>
-          <div className="small muted">
+          <div className="small muted" style={{ marginTop: 6 }}>
             {a.format} · suma kontrolna: {a.checksum === 'valid' ? '✔ poprawna' : a.checksum === 'not-applicable' ? 'brak w formacie' : 'niezweryfikowana'}
             {a.formatNotes.map((n) => (
               <div key={n}>ⓘ {n}</div>
@@ -39,6 +41,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
               Eksplorator ↗
             </a>
           )}
+          <button onClick={() => navigator.clipboard?.writeText(a.address)} title="Kopiuj adres">Kopiuj</button>
           <button onClick={() => setLabelForm(!labelForm)}>Oznacz adres…</button>
         </div>
       </div>
@@ -69,7 +72,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
       )}
 
       <h3>Fakty źródłowe – gdzie opublikowano adres</h3>
-      <table>
+      <div className="table-wrap"><table>
         <thead>
           <tr>
             <th>Źródło</th>
@@ -124,7 +127,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
       {a.aiSuggestions.length > 0 && (
         <div className="callout small">
           🤖 Sugestie AI (pomocnicze, nie zmieniają wyniku): {a.aiSuggestions.map((s) => `[${s.docId}] ${s.category} – ${s.reason}`).join('; ')}
@@ -202,7 +205,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
           {a.indicators.map((i) => (
             <div key={i.code + i.title} className={`callout ${i.cashOut ? 'red' : i.severity === 'medium' ? 'warn' : ''}`}>
               <b>
-                {i.cashOut ? '💶 ' : ''}
+                {i.cashOut ? "" : ""}
                 {i.title}
               </b>{' '}
               {i.cashOut && <span className="tag cash">możliwy cash-out do fiat</span>}
@@ -210,7 +213,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
             </div>
           ))}
           {oc.txs.length > 0 && (
-            <table style={{ marginTop: 8 }}>
+            <div className="table-wrap"><table style={{ marginTop: 8 }}>
               <thead>
                 <tr>
                   <th>Czas</th>
@@ -241,7 +244,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </>
       )}

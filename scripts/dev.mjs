@@ -16,7 +16,7 @@ const children = procs.map(([name, cmd, args]) => {
   return p;
 });
 
-console.log('\nOŁCyŚ: UI http://127.0.0.1:5173 · API http://127.0.0.1:8080 · piaskownica http://127.0.0.1:4100\n');
+console.log('\nOGAR: UI http://127.0.0.1:5173 · API http://127.0.0.1:8080 · piaskownica http://127.0.0.1:4100\n');
 const stop = () => {
   children.forEach((c) => c.kill());
   process.exit(0);

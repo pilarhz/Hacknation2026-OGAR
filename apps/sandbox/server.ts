@@ -33,8 +33,8 @@ const server = http.createServer((req, res) => {
     return send(
       200,
       'text/html',
-      `<!doctype html><meta charset="utf-8"><title>Piaskownica OŁCyŚ</title><body style="font-family:system-ui;max-width:760px;margin:24px auto">
-<h1>🧪 Piaskownica testowa OŁCyŚ</h1><p>Fikcyjne strony do scenariuszy testowych. Aktualny okres: <b>${period}</b>
+      `<!doctype html><meta charset="utf-8"><title>Piaskownica OGAR</title><body style="font-family:system-ui;max-width:760px;margin:24px auto">
+<h1>🧪 Piaskownica testowa OGAR</h1><p>Fikcyjne strony do scenariuszy testowych. Aktualny okres: <b>${period}</b>
 <form method="post" action="/__admin/period?value=${period === 1 ? 2 : 1}" style="display:inline"><button>Przełącz na okres ${period === 1 ? 2 : 1}</button></form></p>
 <ul>${PAGES.map((p) => `<li><a href="${p.path}">${p.title}</a> <small>${p.path}</small></li>`).join('')}</ul>
 <p>Wyszukiwarka: <code>/api/search?q=...</code></p></body>`,
@@ -43,4 +43,4 @@ const server = http.createServer((req, res) => {
   send(404, 'text/plain', 'Nie znaleziono');
 });
 
-server.listen(PORT, HOST, () => console.log(`Piaskownica OŁCyŚ: ${BASE} (okres ${period})`));
+server.listen(PORT, HOST, () => console.log(`Piaskownica OGAR: ${BASE} (okres ${period})`));

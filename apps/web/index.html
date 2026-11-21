@@ -2,9 +2,18 @@
 <html lang="pl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OŁCyŚ – Osintowy Łapacz Cyfrowych Śladów</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦉</text></svg>" />
+    <meta name="viewport" content="width=1280" />
+    <title>OGAR – OSINTowy Gończy Adresów i Rejestrów</title>
+    <link rel="icon" type="image/svg+xml" href="/ogar.svg" />
+    <script>
+      // Motyw ustawiany przed pierwszym renderem (bez mignięcia jasnego tła). Logika jak w src/theme.ts.
+      (function () {
+        var c = 'system';
+        try { c = localStorage.getItem('ogar-theme') || 'system'; } catch (e) {}
+        var dark = c === 'dark' || (c !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

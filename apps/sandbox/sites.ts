@@ -1,4 +1,4 @@
-// FIKCYJNE strony do scenariuszy testowych OŁCyŚ. Osoby, nicki, e-maile (domena example.com –
+// FIKCYJNE strony do scenariuszy testowych OGAR. Osoby, nicki, e-maile (domena example.com –
 // zarezerwowana RFC 2606) i adresy są syntetyczne. Adresy kryptowalut są poprawne formalnie,
 // ale wygenerowane z sha256 – nikt nie posiada do nich kluczy.
 // Okres 1 / okres 2 symuluje upływ czasu (np. podmianę adresu w profilu) – patrz /__admin.

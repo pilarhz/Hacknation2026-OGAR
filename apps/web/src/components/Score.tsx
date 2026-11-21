@@ -3,8 +3,8 @@ const COLORS: Record<string, string> = {
   PROBABLE: 'var(--pr)',
   MEDIUM: 'var(--md)',
   LOW: 'var(--lo)',
-  NOT_ATTRIBUTED: '#cbd5e1',
-  EXCLUDED: 'var(--ex)',
+  NOT_ATTRIBUTED: 'var(--line-2)',
+  EXCLUDED: 'var(--line-2)',
 };
 
 export function ScoreBadge({ score, band }: { score: number; band: string }) {
@@ -21,6 +21,10 @@ export function ScoreBar({ score, band }: { score: number; band: string }) {
       <span style={{ width: `${score}%`, background: COLORS[band] }} />
     </div>
   );
+}
+
+export function Chain({ chain }: { chain: string }) {
+  return <span className={`chain ${chain}`}>{chain}</span>;
 }
 
 export const BAND_SHORT: Record<string, string> = {

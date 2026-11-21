@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, type Meta } from '../api.ts';
+import { api, SCHEDULES, type Meta } from '../api.ts';
 import { go } from '../App.tsx';
 
 interface Seed {
@@ -68,7 +68,8 @@ export function NewPage({ meta }: { meta: Meta }) {
 
   const mixed = sources.includes('sandbox') && sources.some((s) => !meta.sources.find((x) => x.id === s)?.synthetic && s !== 'web');
   const nickOnly = seeds.some((s) => s.kind === 'nick' && s.value.trim()) && !seeds.some((s) => ['social', 'email', 'url', 'telegram', 'phone'].includes(s.kind) && s.value.trim());
-  const valid = name.trim() && seeds.some((s) => s.value.trim()) && sources.length;
+  const hasSeed = seeds.some((s) => s.value.trim());
+  const valid = name.trim() && hasSeed && sources.length;
 
   const submit = async () => {
     setBusy(true);
@@ -88,44 +89,44 @@ export function NewPage({ meta }: { meta: Meta }) {
     }
   };
 
+  const missing = [!name.trim() && 'nazwę analizy', !hasSeed && 'co najmniej jeden identyfikator', !sources.length && 'co najmniej jedno źródło'].filter(Boolean);
+
   return (
     <>
-      <h1>Nowa analiza</h1>
-      <div className="muted" style={{ marginBottom: 12 }}>
-        Podaj co najmniej jeden identyfikator. Narzędzie przeszuka publiczne źródła, wyodrębni adresy krypto, policzy Wskaźnik Pewności i przeanalizuje aktywność on-chain.
-      </div>
-
-      <div className="panel">
-        <h3>Scenariusze demonstracyjne</h3>
-        <div className="presets">
-          {PRESETS.map((p) => (
-            <button key={p.title} className="preset" onClick={() => applyPreset(p)}>
-              <b>{p.title}</b>
-              <span>{p.desc}</span>
-            </button>
-          ))}
-        </div>
-        <div className="small muted" style={{ marginTop: 8 }}>
-          Scenariusze 1–4 działają na piaskownicy z fikcyjnymi danymi ({meta.config.sandboxUrl}) – bez przetwarzania danych prawdziwych osób.
+      <div className="page-head">
+        <div>
+          <h1>Nowa analiza</h1>
+          <p className="lead">
+            Podaj co najmniej jeden identyfikator. Narzędzie przeszuka publiczne źródła, wyodrębni adresy krypto, policzy Wskaźnik Pewności i przeanalizuje aktywność on-chain.
+          </p>
         </div>
       </div>
 
-      <div className="grid2">
-        <div className="panel">
-          <h3>Dane wejściowe</h3>
-          <div className="row" style={{ marginBottom: 10 }}>
-            <label className="field" style={{ flex: 2 }}>
+      <div className="steps">
+        <section className="panel">
+          <div className="step-head">
+            <span className="step-num">1</span>
+            <div>
+              <h3>Kogo badamy?</h3>
+              <p>Wpisz dane albo kliknij gotowy scenariusz demonstracyjny poniżej.</p>
+            </div>
+          </div>
+          <div className="row" style={{ marginBottom: 14, alignItems: 'flex-start' }}>
+            <label className="field" style={{ flex: '2 1 260px' }}>
               Nazwa analizy
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="np. Kontrola PIT-38 – podatnik X" />
             </label>
-            <label className="field" style={{ flex: 1 }}>
-              Sygnatura sprawy (opcjonalnie)
+            <label className="field" style={{ flex: '1 1 200px' }}>
+              <span>
+                Sygnatura sprawy <span className="hint">(opcjonalnie)</span>
+              </span>
               <input value={caseRef} onChange={(e) => setCaseRef(e.target.value)} placeholder="np. 1234-KAS.5000.2026" />
             </label>
           </div>
+          <div className="small" style={{ fontWeight: 500, color: 'var(--ink-2)', marginBottom: 6 }}>Identyfikatory</div>
           {seeds.map((s, i) => (
             <div key={i} className="seed-row">
-              <select value={s.kind} onChange={(e) => setSeeds(seeds.map((x, k) => (k === i ? { ...x, kind: e.target.value } : x)))}>
+              <select aria-label="Typ identyfikatora" value={s.kind} onChange={(e) => setSeeds(seeds.map((x, k) => (k === i ? { ...x, kind: e.target.value } : x)))}>
                 {meta.identifierKinds.map((k) => (
                   <option key={k.id} value={k.id}>
                     {k.label}
@@ -133,85 +134,133 @@ export function NewPage({ meta }: { meta: Meta }) {
                 ))}
               </select>
               <input
+                aria-label="Wartość identyfikatora"
                 value={s.value}
                 onChange={(e) => setSeeds(seeds.map((x, k) => (k === i ? { ...x, value: e.target.value } : x)))}
                 placeholder={s.kind === 'address' ? 'bc1… / 0x… / T…' : s.kind === 'email' ? 'jan@example.com' : s.kind === 'url' ? 'https://…' : 'wartość'}
               />
-              <button onClick={() => setSeeds(seeds.filter((_, k) => k !== i))} disabled={seeds.length === 1} title="Usuń">
+              <button className="ghost" onClick={() => setSeeds(seeds.filter((_, k) => k !== i))} disabled={seeds.length === 1} title="Usuń identyfikator" aria-label="Usuń identyfikator">
                 ✕
               </button>
             </div>
           ))}
-          <button onClick={() => setSeeds([...seeds, { kind: 'nick', value: '' }])}>+ Dodaj identyfikator</button>
+          <button className="sm" onClick={() => setSeeds([...seeds, { kind: 'nick', value: '' }])}>
+            + Dodaj kolejny identyfikator
+          </button>
           {nickOnly && (
-            <div className="callout small" style={{ marginTop: 10 }}>
-              Podano sam nick. Ten sam nick w różnych serwisach może należeć do różnych osób – konta połączone z badanym wyłącznie nickiem dostaną karę R9. Jeśli znasz konkretny profil (URL), e-mail lub Telegram, dodaj go, aby zakotwiczyć tożsamość.
+            <div className="callout small">
+              <b>Sam nick to słaba kotwica.</b> Ten sam nick w różnych serwisach może należeć do różnych osób – konta połączone z badanym wyłącznie nickiem dostaną karę R9. Jeśli znasz profil (URL), e-mail lub Telegram, dodaj go.
             </div>
           )}
-        </div>
 
-        <div className="panel">
-          <h3>Źródła i parametry</h3>
-          {meta.sources.map((s) => (
-            <label key={s.id} className="check">
-              <input type="checkbox" checked={sources.includes(s.id)} onChange={(e) => setSources(e.target.checked ? [...sources, s.id] : sources.filter((x) => x !== s.id))} disabled={!s.available} />
-              <div>
-                <b>{s.label}</b> {s.synthetic && <span className="tag syn">dane syntetyczne</span>}
-                {s.note && <span className={`tag ${s.available ? 'syn' : ''}`}>⚠ {s.note}</span>}
-                <div className="small muted">
-                  {s.description} · przyjmuje: {s.accepts.join(', ')}
-                </div>
-              </div>
-            </label>
-          ))}
+          <div className="section-title" style={{ marginTop: 24 }}>
+            Scenariusze demonstracyjne
+          </div>
+          <div className="presets">
+            {PRESETS.map((p) => (
+              <button key={p.title} className={`preset ${name === p.name ? 'active' : ''}`} onClick={() => applyPreset(p)}>
+                <b>{p.title}</b>
+                <span>{p.desc}</span>
+              </button>
+            ))}
+          </div>
+          <div className="small muted" style={{ marginTop: 8 }}>
+            Scenariusze 1–4 działają na piaskownicy z fikcyjnymi danymi ({meta.config.sandboxUrl}) – bez przetwarzania danych prawdziwych osób.
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="step-head">
+            <span className="step-num">2</span>
+            <div>
+              <h3>Gdzie szukać?</h3>
+              <p>Zaznacz źródła. Każde przyjmuje tylko wybrane typy identyfikatorów.</p>
+            </div>
+          </div>
+          <div className="source-grid">
+            {meta.sources.map((s) => {
+              const on = sources.includes(s.id);
+              return (
+                <label key={s.id} className={`source-card ${on ? 'on' : ''} ${s.available ? '' : 'disabled'}`}>
+                  <input type="checkbox" checked={on} onChange={(e) => setSources(e.target.checked ? [...sources, s.id] : sources.filter((x) => x !== s.id))} disabled={!s.available} />
+                  <div style={{ minWidth: 0 }}>
+                    <b>{s.label}</b> {s.synthetic && <span className="tag syn">syntetyczne</span>}
+                    <div className="small muted">{s.description}</div>
+                    <div className="small muted">przyjmuje: {s.accepts.join(', ')}</div>
+                    {s.note && (
+                      <span className={`tag ${s.available ? 'syn' : ''}`} style={{ marginTop: 4, whiteSpace: 'normal' }}>
+                        ⚠ {s.note}
+                      </span>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
           {mixed && <div className="callout warn small">Łączysz piaskownicę z prawdziwymi źródłami – identyfikatory testowe zostaną wysłane także do serwisów publicznych.</div>}
-          <div className="row" style={{ marginTop: 10 }}>
+        </section>
+
+        <section className="panel">
+          <div className="step-head">
+            <span className="step-num">3</span>
+            <div>
+              <h3>Jak głęboko i jak często?</h3>
+              <p>Wartości domyślne pasują do większości spraw.</p>
+            </div>
+          </div>
+          <div className="row" style={{ alignItems: 'flex-start', gap: 16 }}>
             <label className="field">
               Głębokość pivotu
               <select value={maxDepth} onChange={(e) => setMaxDepth(Number(e.target.value))}>
                 {[0, 1, 2, 3].map((d) => (
                   <option key={d} value={d}>
-                    {d} {d === 0 ? '(tylko dane wejściowe)' : ''}
+                    {d === 0 ? '0 (tylko dane wejściowe)' : `${d} ${d === 1 ? 'krok' : 'kroki'}`}
                   </option>
                 ))}
               </select>
             </label>
             <label className="field">
-              Limit dokumentów
-              <input type="number" min={1} max={500} value={maxDocuments} onChange={(e) => setMaxDocuments(Number(e.target.value))} style={{ width: 100 }} />
-            </label>
-            <label className="field">
               Analiza cykliczna
               <select value={schedule} onChange={(e) => setSchedule(Number(e.target.value))}>
-                <option value={0}>ręcznie</option>
-                <option value={1}>co 1 min (demo)</option>
-                <option value={60}>co godzinę</option>
-                <option value={1440}>codziennie</option>
-                <option value={10080}>co tydzień</option>
+                {SCHEDULES.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
-          <label className="check">
+          <label className="check" style={{ marginTop: 10 }}>
             <input type="checkbox" checked={chainLookup} onChange={(e) => setChainLookup(e.target.checked)} />
             <div>
-              Analiza on-chain <span className="small muted">(Blockscout, Esplora, Tronscan – publiczne API)</span>
+              Analiza on-chain <span className="small muted">– Blockscout, Esplora, Tronscan (publiczne API)</span>
             </div>
           </label>
-          <label className="check">
-            <input type="checkbox" checked={useAi} onChange={(e) => setUseAi(e.target.checked)} disabled={meta.config.ai === 'none'} />
-            <div>
-              Sugestie AI dla niejednoznacznego kontekstu{' '}
-              <span className="small muted">{meta.config.ai === 'none' ? '(wyłączone – ustaw AI_PROVIDER, np. lokalna Ollama)' : `(${meta.config.aiModel}, bez wpływu na wynik)`}</span>
-            </div>
-          </label>
+          <details className="adv" style={{ marginTop: 6 }}>
+            <summary>Ustawienia zaawansowane</summary>
+            <label className="field" style={{ marginTop: 10, maxWidth: 200 }}>
+              Limit dokumentów
+              <input type="number" min={1} max={500} value={maxDocuments} onChange={(e) => setMaxDocuments(Number(e.target.value))} />
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={useAi} onChange={(e) => setUseAi(e.target.checked)} disabled={meta.config.ai === 'none'} />
+              <div>
+                Sugestie AI dla niejednoznacznego kontekstu{' '}
+                <span className="small muted">{meta.config.ai === 'none' ? '(wyłączone – ustaw AI_PROVIDER, np. lokalna Ollama)' : `(${meta.config.aiModel}, bez wpływu na wynik)`}</span>
+              </div>
+            </label>
+          </details>
+        </section>
+
+        {err && <div className="callout red">{err}</div>}
+        <div className="submit-bar">
+          <button className="primary lg" disabled={!valid || busy} onClick={submit}>
+            {busy ? 'Uruchamianie…' : 'Uruchom analizę →'}
+          </button>
+          <span className="small muted">
+            {missing.length ? `Uzupełnij: ${missing.join(', ')}.` : 'Korzystamy wyłącznie z publicznych źródeł (OSINT) – bez logowania i obchodzenia zabezpieczeń.'}
+          </span>
         </div>
-      </div>
-      {err && <div className="callout red">{err}</div>}
-      <div className="row">
-        <button className="primary" disabled={!valid || busy} onClick={submit}>
-          {busy ? 'Uruchamianie…' : 'Uruchom analizę'}
-        </button>
-        <span className="small muted">Korzystamy wyłącznie z publicznych źródeł (OSINT) – bez logowania i obchodzenia zabezpieczeń.</span>
       </div>
     </>
   );

@@ -12,7 +12,7 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:24-alpine
 WORKDIR /app
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080 DB_PATH=/data/olcys.db
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080 DB_PATH=/data/ogar.db
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/package.json apps/api/

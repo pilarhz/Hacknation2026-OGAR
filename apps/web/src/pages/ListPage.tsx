@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { api, fmtDate, type InvestigationListItem } from '../api.ts';
+import { api, fmtDate, fmtSchedule, type InvestigationListItem } from '../api.ts';
 import { go } from '../App.tsx';
+
+const bandOf = (s: number) => (s >= 80 ? 'VERY_HIGH' : s >= 60 ? 'PROBABLE' : s >= 40 ? 'MEDIUM' : s > 0 ? 'LOW' : 'NOT_ATTRIBUTED');
 
 export function ListPage() {
   const [items, setItems] = useState<InvestigationListItem[] | null>(null);
@@ -10,13 +12,13 @@ export function ListPage() {
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, []);
-  if (!items) return <div className="empty">Ładowanie…</div>;
+  if (!items) return <div className="empty"><div className="spinner" style={{ margin: '0 auto 10px' }} />Ładowanie…</div>;
   return (
     <>
-      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+      <div className="page-head">
         <div>
           <h1>Analizy</h1>
-          <div className="muted">Sprawy OSINT: identyfikatory wejściowe, przebiegi cykliczne i ich wyniki.</div>
+          <p className="lead">Sprawy OSINT – identyfikatory wejściowe, kolejne przebiegi i najważniejsze wyniki. Kliknij wiersz, aby otworzyć analizę.</p>
         </div>
         <button className="primary" onClick={() => go('/new')}>
           + Nowa analiza
@@ -24,18 +26,22 @@ export function ListPage() {
       </div>
       {items.length === 0 ? (
         <div className="panel empty">
-          Brak analiz. <a href="#/new">Utwórz pierwszą analizę</a> – np. ze scenariusza testowego na danych syntetycznych.
+          <b>Nie ma jeszcze żadnej analizy</b>
+          Zacznij od scenariusza demonstracyjnego na danych syntetycznych – zajmie to kilka sekund.
+          <div style={{ marginTop: 16 }}>
+            <button className="primary" onClick={() => go('/new')}>Utwórz pierwszą analizę</button>
+          </div>
         </div>
       ) : (
-        <div className="panel flush">
+        <div className="panel flush table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Nazwa</th>
+                <th>Analiza</th>
                 <th>Dane wejściowe</th>
-                <th>Przebiegi</th>
+                <th className="right">Najwyższy wynik</th>
+                <th>Ostatni przebieg</th>
                 <th>Harmonogram</th>
-                <th>Ostatni wynik</th>
                 <th>Aktualizacja</th>
               </tr>
             </thead>
@@ -44,32 +50,39 @@ export function ListPage() {
                 <tr key={i.id} className="clickable" onClick={() => go(`/inv/${i.id}`)}>
                   <td>
                     <b>{i.name}</b>
-                    {i.caseRef && <div className="muted small">{i.caseRef}</div>}
+                    <div className="muted small">
+                      {i.caseRef ? `${i.caseRef} · ` : ''}
+                      {i.runCount} {i.runCount === 1 ? 'przebieg' : 'przebiegi'}
+                    </div>
                   </td>
                   <td>
                     {i.seeds.map((s, k) => (
-                      <span key={k} className="tag">
-                        {s.kind}: {s.value.length > 24 ? s.value.slice(0, 22) + '…' : s.value}
+                      <span key={k} className="tag" title={s.value}>
+                        {s.kind}: <b>{s.value.length > 24 ? s.value.slice(0, 22) + '…' : s.value}</b>
                       </span>
                     ))}
                   </td>
-                  <td>
-                    {i.runCount}
-                    {i.lastStatus === 'running' && <span className="tag blue">trwa…</span>}
-                    {i.lastStatus === 'error' && <span className="tag cash">błąd</span>}
+                  <td className="right">
+                    {i.topScore !== null ? <span className={`score b-${bandOf(i.topScore)}`}>{i.topScore}%</span> : <span className="muted">—</span>}
                   </td>
-                  <td>{i.scheduleMinutes ? `co ${i.scheduleMinutes} min` : <span className="muted">ręcznie</span>}</td>
-                  <td>
-                    {i.lastStats ? (
-                      <span className="small">
-                        {i.lastStats.attributed} przypisanych · {i.lastStats.excluded} wykluczonych · {i.lastStats.cashOutSignals} sygnałów cash-out
-                        {i.topScore !== null && <> · max {i.topScore}%</>}
-                      </span>
+                  <td className="small">
+                    {i.lastStatus === 'running' ? (
+                      <span className="status"><span className="dot run" />trwa analiza…</span>
+                    ) : i.lastStatus === 'error' ? (
+                      <span className="status" style={{ color: 'var(--danger)' }}><span className="dot err" />błąd</span>
+                    ) : i.lastStats ? (
+                      <>
+                        <b>{i.lastStats.attributed}</b> przypisanych · {i.lastStats.excluded} wykluczonych
+                        {i.lastStats.cashOutSignals > 0 && (
+                          <div><span className="tag cash">{i.lastStats.cashOutSignals} sygnałów cash-out</span></div>
+                        )}
+                      </>
                     ) : (
                       <span className="muted">—</span>
                     )}
                   </td>
-                  <td className="small muted">{fmtDate(i.updatedAt)}</td>
+                  <td className="small">{i.scheduleMinutes ? <span className="tag blue">⏱ {fmtSchedule(i.scheduleMinutes)}</span> : <span className="muted">ręcznie</span>}</td>
+                  <td className="small muted nowrap">{fmtDate(i.updatedAt)}</td>
                 </tr>
               ))}
             </tbody>

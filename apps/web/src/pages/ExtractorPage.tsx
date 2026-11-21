@@ -49,7 +49,7 @@ export function ExtractorPage() {
             {res.rejected.map((r, i) => (
               <div key={i} style={{ marginBottom: 8 }}>
                 <div className="mono">{r.candidate}</div>
-                <div className="small" style={{ color: '#b91c1c' }}>{r.reason}</div>
+                <div className="small err-text">{r.reason}</div>
               </div>
             ))}
             <h3>Identyfikatory Web2 ({res.identifiers.length})</h3>

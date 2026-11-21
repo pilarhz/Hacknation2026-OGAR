@@ -6,7 +6,7 @@ export function MethodPage({ meta }: { meta: Meta }) {
     <>
       <h1>Metodyka</h1>
       <div className="muted" style={{ marginBottom: 12 }}>
-        Jak OŁCyŚ łączy ślady Web2 z adresami Web3 i jak liczy Wskaźnik Pewności. Algorytm jest w pełni regułowy – ten sam materiał daje zawsze ten sam wynik, a każda składowa jest widoczna w raporcie.
+        Jak OGAR łączy ślady Web2 z adresami Web3 i jak liczy Wskaźnik Pewności. Algorytm jest w pełni regułowy – ten sam materiał daje zawsze ten sam wynik, a każda składowa jest widoczna w raporcie.
       </div>
       <div className="grid2">
         <div className="panel">

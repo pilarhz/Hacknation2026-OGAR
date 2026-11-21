@@ -8,7 +8,7 @@ services:
       # AI_PROVIDER: openai-compatible
       # AI_BASE_URL: http://ollama:11434/v1
     volumes:
-      - olcys-data:/data
+      - ogar-data:/data
     depends_on:
       - sandbox
 
@@ -28,4 +28,4 @@ services:
   #   volumes: [ollama:/root/.ollama]
 
 volumes:
-  olcys-data:
+  ogar-data:

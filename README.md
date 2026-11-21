@@ -1,6 +1,6 @@
-# OSINTowy Łapacz Cyfrowych Śladów
+# OGAR - OSINTowy łapacz adresów i rejestrów
 
-**HackNation 2026 · wyzwanie Ministerstwa Finansów / KAS**
+**HackNation 2026 wyzwanie Ministerstwa Finansów / KAS**
 
 Narzędzie analityczne OSINT, które po podaniu identyfikatora (nick, e-mail, Telegram, imię i nazwisko, strona WWW albo **publiczny adres kryptowalutowy**):
 

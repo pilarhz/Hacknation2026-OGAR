@@ -80,7 +80,7 @@ table{border-collapse:collapse;width:100%;margin:6px 0 10px;font-size:12px}td,th
 </style></head><body>
 <div class="noprint" style="text-align:right"><button onclick="window.print()">Drukuj / zapisz PDF</button></div>
 <h1>Raport OSINT – powiązania śladów cyfrowych z adresami kryptowalutowymi</h1>
-<div class="muted">OŁCyŚ v${esc(r.engineVersion)} · analiza „${esc(inv.name)}”${inv.caseRef ? ` · sygnatura ${esc(inv.caseRef)}` : ''} · przebieg #${run.seq} (${run.trigger === 'schedule' ? 'cykliczny' : 'ręczny'}) · ${dt(r.startedAt)} – ${dt(r.finishedAt)}</div>
+<div class="muted">OGAR v${esc(r.engineVersion)} · analiza „${esc(inv.name)}”${inv.caseRef ? ` · sygnatura ${esc(inv.caseRef)}` : ''} · przebieg #${run.seq} (${run.trigger === 'schedule' ? 'cykliczny' : 'ręczny'}) · ${dt(r.startedAt)} – ${dt(r.finishedAt)}</div>
 ${synthetic ? '<div class="box warn"><b>Uwaga:</b> raport zawiera dane z piaskownicy testowej (fikcyjne osoby i transakcje oznaczone jako syntetyczne).</div>' : ''}
 <div class="box"><b>Jak czytać raport.</b> Sekcja 3 zawiera <b>fakty źródłowe</b> – to, co zostało opublikowane w Internecie, z adresem URL i czasem pobrania. Sekcja 4 to <b>wyniki obliczeń</b> – Wskaźnik Pewności liczony według jawnych reguł oraz dane z blockchaina. Sekcja 6 to <b>wnioski wymagające dalszej weryfikacji</b> – nie są ustaleniami faktycznymi.</div>
 
