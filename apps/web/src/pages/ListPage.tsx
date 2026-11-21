@@ -21,7 +21,7 @@ export function ListPage() {
           <p className="lead">Sprawy OSINT – identyfikatory wejściowe, kolejne przebiegi i najważniejsze wyniki. Kliknij wiersz, aby otworzyć analizę.</p>
         </div>
         <button className="primary" onClick={() => go('/new')}>
-          + Nowa analiza
+          Nowa analiza
         </button>
       </div>
       {items.length === 0 ? (

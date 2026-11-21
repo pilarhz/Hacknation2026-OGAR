@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError, type Meta } from './api.ts';
+import { api, ApiError, type InvestigationListItem, type Meta } from './api.ts';
 import { useTheme, type Theme } from './theme.ts';
 
 function Login({ onDone }: { onDone: () => void }) {
@@ -90,49 +90,85 @@ export function App() {
   );
   return (
     <div className="shell">
-      <aside className="sidebar">
-        <a className="brand" href="#/">
+      {/* Górny pasek „Sztab": znak OGAR jest zawsze widoczny (pasek przyklejony do góry ekranu). */}
+      <header className="topbar">
+        <a className="brand" href="#/" aria-label="OGAR – lista analiz">
           <img className="brand-logo" src="/ogar.svg" alt="" aria-hidden />
           <b>OGAR</b>
         </a>
-        <nav className="nav" aria-label="Główna nawigacja">
-          {link('/new', 'Nowa analiza', <Icon d="M12 5v14M5 12h14" />, 'cta')}
-          <div className="nav-group">Sprawy</div>
-          {link('/', 'Analizy', <Icon d="M3 7h18M3 12h18M3 17h12" />)}
-          <div className="nav-group">Narzędzia</div>
-          {link('/extract', 'Ekstraktor adresów', <Icon d="M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3" />)}
-          {link('/labels', 'Etykiety adresów', <Icon d="M3 12V4h8l10 10-8 8L3 12zM7.5 7.5h.01" />)}
-          <div className="nav-group">Pomoc</div>
-          {link('/method', 'Metodyka', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 17v.01M12 14a2.5 2.5 0 10-2.5-2.5" />)}
-        </nav>
-        <div className="side-foot">
+        <span className="topbar-sep" aria-hidden />
+        <span className="topbar-tag">Serwis Krajowej Administracji Skarbowej</span>
+        <div className="topbar-right">
           {meta && (
-            <>
-              <div className="status"><span className={`dot ${meta.config.chainLive ? 'on' : ''}`} />on-chain: {meta.config.chainLive ? 'publiczne API' : 'wyłączone'}</div>
-              <div className="status"><span className={`dot ${meta.config.ai === 'none' ? '' : 'on'}`} />AI: {meta.config.ai === 'none' ? 'wyłączone' : meta.config.aiModel}</div>
-            </>
+            <div className="status-row">
+              <span className="status" title={`On-chain: ${meta.config.chainLive ? 'publiczne API' : 'wyłączone'}`}>
+                <span className={`dot ${meta.config.chainLive ? 'on' : ''}`} />
+                on-chain
+              </span>
+              <span className="status" title={`AI: ${meta.config.ai === 'none' ? 'wyłączone' : meta.config.aiModel}`}>
+                <span className={`dot ${meta.config.ai === 'none' ? '' : 'on'}`} />
+                AI
+              </span>
+            </div>
           )}
-          <nav className="nav" aria-label="Informacje" style={{ margin: '6px -8px 2px' }}>
-            {link('/about', 'O programie', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 11v5M12 8v.01" />)}
-          </nav>
-          <span className="theme-label">Motyw</span>
-          <div className="seg" role="radiogroup" aria-label="Motyw interfejsu">
+          <a href="#/new" className={`btn cta ${isActive('/new') ? 'active' : ''}`} aria-current={isActive('/new') ? 'page' : undefined}>
+            Nowa analiza
+          </a>
+          <div className="seg icon-seg" role="radiogroup" aria-label="Motyw interfejsu">
             {(
               [
-                ['light', 'Jasny'],
-                ['dark', 'Ciemny'],
-              ] as [Theme, string][]
-            ).map(([v, l]) => (
-              <button key={v} role="radio" aria-checked={theme === v} className={theme === v ? 'active' : ''} onClick={() => setTheme(v)}>
-                {l}
+                ['light', 'Motyw jasny', 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'],
+                ['dark', 'Motyw ciemny', 'M21 13A9 9 0 1111 3a7 7 0 0010 10z'],
+              ] as [Theme, string, string][]
+            ).map(([v, l, d]) => (
+              <button key={v} role="radio" aria-checked={theme === v} aria-label={l} title={l} className={theme === v ? 'active' : ''} onClick={() => setTheme(v)}>
+                <Icon d={d} />
               </button>
             ))}
           </div>
         </div>
-      </aside>
-      <main className="main">
-        <div className="container">{page}</div>
-      </main>
+      </header>
+      <div className="workspace">
+        <aside className="sidenav">
+          <nav className="nav" aria-label="Główna nawigacja">
+            {link('/', 'Analizy', <Icon d="M3 7h18M3 12h18M3 17h12" />)}
+            {link('/extract', 'Ekstraktor adresów', <Icon d="M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3" />)}
+            {link('/labels', 'Etykiety adresów', <Icon d="M3 12V4h8l10 10-8 8L3 12zM7.5 7.5h.01" />)}
+            {link('/method', 'Metodyka', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 17v.01M12 14a2.5 2.5 0 10-2.5-2.5" />)}
+          </nav>
+          {meta && <RecentCases current={parts[0] === 'inv' ? parts[1] : undefined} />}
+          <nav className="nav side-bottom" aria-label="Informacje">
+            {link('/about', 'O programie', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 11v5M12 8v.01" />)}
+          </nav>
+        </aside>
+        <main className="main">
+          <div className="container">{page}</div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// „Ostatnie sprawy" w menu bocznym – 5 ostatnio zmienianych analiz z najwyższym Wskaźnikiem Pewności.
+function RecentCases({ current }: { current?: string }) {
+  const [items, setItems] = useState<InvestigationListItem[]>([]);
+  useEffect(() => {
+    const load = () => api.list().then(setItems).catch(() => {});
+    load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, []);
+  if (!items.length) return null;
+  const recent = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
+  return (
+    <div className="recent">
+      <div className="nav-group">Ostatnie sprawy</div>
+      {recent.map((i) => (
+        <a key={i.id} href={`#/inv/${i.id}`} className={i.id === current ? 'active' : ''} aria-current={i.id === current ? 'page' : undefined} title={i.name}>
+          <span className="recent-name">{i.name}</span>
+          <span className="recent-score">{i.topScore != null ? `${i.topScore}%` : '—'}</span>
+        </a>
+      ))}
     </div>
   );
 }
