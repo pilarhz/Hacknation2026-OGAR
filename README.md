@@ -1,4 +1,4 @@
-# 🦉 OŁCyŚ – Osintowy Łapacz Cyfrowych Śladów
+# OSINTowy Łapacz Cyfrowych Śladów
 
 **HackNation 2026 · wyzwanie Ministerstwa Finansów / KAS**
 
