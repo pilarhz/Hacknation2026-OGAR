@@ -204,7 +204,7 @@ li { margin-bottom: 6px; }
 /* ---------- sekcje dokumentu (numerowane jak w piśmie) ---------- */
 .doc-h { display: flex; align-items: baseline; gap: 10px; font-size: 17px; font-weight: 600; margin: 30px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line-2); }
 .doc-h:first-child { margin-top: 0; }
-.doc-h .n { color: var(--brand); font-family: var(--font-mono); font-size: 14px; font-variant-numeric: tabular-nums; }
+.doc-h .n { color: var(--brand); font-family: var(--font-mono); font-size: 18px; font-variant-numeric: tabular-nums; }
 .doc-h .aside { margin-left: auto; font-size: 13px; font-weight: 400; color: var(--muted); }
 
 /* ---------- panele ---------- */

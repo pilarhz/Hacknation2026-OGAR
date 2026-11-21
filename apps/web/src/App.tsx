@@ -97,7 +97,7 @@ export function App() {
           <b>OGAR</b>
         </a>
         <span className="topbar-sep" aria-hidden />
-        <span className="topbar-tag">Serwis Krajowej Administracji Skarbowej</span>
+        <span className="topbar-tag">Narzędzie analityczne administracji</span>
         <div className="topbar-right">
           {meta && (
             <div className="status-row">
