@@ -324,6 +324,7 @@ Kod: MIT. Zależności (wszystkie open source):
 | @noble/hashes (keccak-256) | 1.8 | MIT |
 | react, react-dom | 19.3 | MIT |
 | vite, @vitejs/plugin-react | 6.4 / 4.7 | MIT |
+| Czcionki @fontsource: Saira Stencil One, Saira (variable), Source Sans 3, IBM Plex Mono | 5.3 | OFL-1.1 |
 | typescript | 5.9 | Apache-2.0 |
 | Node.js (`node:sqlite`, `node:test`) | 24 | MIT |
 
