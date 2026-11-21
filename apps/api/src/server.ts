@@ -6,14 +6,14 @@ import { existsSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { config, REPO_ROOT } from './config.ts';
-import { audit, db } from './db/db.ts';
+import { audit, db, iso } from './db/db.ts';
 import { describeSources } from './sources/registry.ts';
 import { IDENTIFIER_LABELS, extractIdentifiers, type IdentifierKind } from './extract/identifiers.ts';
 import { extractAddresses } from './extract/addresses.ts';
 import { CONTEXT_INFO } from './scoring/context.ts';
 import { BANDS, SCORING_PARAMS } from './scoring/confidence.ts';
 import { CATEGORY_LABELS, type LabelCategory } from './chain/types.ts';
-import { addCustomLabel, listLabels } from './chain/labels.ts';
+import { addCustomLabel, listLabels, refreshCustomLabels } from './chain/labels.ts';
 import { DEFAULT_OPTIONS } from './engine/investigate.ts';
 import {
   approveHost,
@@ -59,16 +59,23 @@ app.addHook('onRequest', async (req, reply) => {
 app.post<{ Body: { token: string } }>('/api/login', { schema: { body: { type: 'object', required: ['token'], properties: { token: { type: 'string', maxLength: 500 } } } } }, async (req, reply) => {
   if (!API_TOKEN) return { ok: true, auth: false };
   if (!tokenOk(req.body.token)) {
-    audit('auth.fail', {});
+    await audit('auth.fail', {});
     return reply.code(401).send({ error: 'Nieprawidłowy token' });
   }
-  audit('auth.login', {});
+  await audit('auth.login', {});
   return reply.header('Set-Cookie', `${COOKIE}=${encodeURIComponent(req.body.token)}; HttpOnly; SameSite=Strict; Path=/api`).send({ ok: true });
 });
 
 const KINDS = Object.keys(IDENTIFIER_LABELS) as IdentifierKind[];
 
-app.get('/api/health', async () => ({ ok: true, db: !!db() }));
+app.get('/api/health', async (_req, reply) => {
+  try {
+    await db().one('SELECT 1');
+    return { ok: true, db: db().kind };
+  } catch (e) {
+    return reply.code(503).send({ ok: false, db: db().kind, error: e instanceof Error ? e.message : String(e) });
+  }
+});
 
 app.get('/api/meta', async () => ({
   sources: describeSources(),
@@ -78,10 +85,10 @@ app.get('/api/meta', async () => ({
   scoringParams: SCORING_PARAMS,
   categories: CATEGORY_LABELS,
   defaults: DEFAULT_OPTIONS,
-  config: { chainLive: config.chainLive, ai: config.ai.provider, aiModel: config.ai.provider === 'none' ? null : config.ai.model, sandboxUrl: config.sandboxUrl, allowedHosts: config.allowedHosts, searxng: !!config.searxngUrl },
+  config: { database: db().kind === 'postgres' ? 'PostgreSQL (serwer)' : 'PostgreSQL (wbudowany – PGlite)', chainLive: config.chainLive, ai: config.ai.provider, aiModel: config.ai.provider === 'none' ? null : config.ai.model, sandboxUrl: config.sandboxUrl, allowedHosts: config.allowedHosts, searxng: !!config.searxngUrl },
 }));
 
-app.get('/api/investigations', async () => listInvestigations());
+app.get('/api/investigations', async () => await listInvestigations());
 
 app.post<{
   Body: { name: string; caseRef?: string; seeds: { kind: IdentifierKind; value: string }[]; options?: Record<string, unknown>; scheduleMinutes?: number | null; runNow?: boolean };
@@ -117,33 +124,33 @@ app.post<{
     },
   },
   async (req) => {
-    const inv = createInvestigation(req.body);
-    const runId = req.body.runNow === false ? null : startRun(inv.id, 'manual');
+    const inv = await createInvestigation(req.body);
+    const runId = req.body.runNow === false ? null : await startRun(inv.id, 'manual');
     return { investigation: inv, runId };
   },
 );
 
 app.get<{ Params: { id: string } }>('/api/investigations/:id', async (req, reply) => {
-  const inv = getInvestigation(req.params.id);
+  const inv = await getInvestigation(req.params.id);
   if (!inv) return reply.code(404).send({ error: 'Nie znaleziono' });
-  return { investigation: inv, runs: listRuns(inv.id) };
+  return { investigation: inv, runs: await listRuns(inv.id) };
 });
 
 app.delete<{ Params: { id: string } }>('/api/investigations/:id', async (req) => {
-  deleteInvestigation(req.params.id);
+  await deleteInvestigation(req.params.id);
   return { ok: true };
 });
 
 app.put<{ Params: { id: string }; Body: { minutes: number | null } }>('/api/investigations/:id/schedule', async (req) => {
-  updateSchedule(req.params.id, req.body?.minutes ?? null);
-  return { investigation: getInvestigation(req.params.id) };
+  await updateSchedule(req.params.id, req.body?.minutes ?? null);
+  return { investigation: await getInvestigation(req.params.id) };
 });
 
 app.post<{ Params: { id: string }; Body: { host: string } }>(
   '/api/investigations/:id/approved-hosts',
   { schema: { body: { type: 'object', required: ['host'], properties: { host: { type: 'string', maxLength: 253, pattern: '^[A-Za-z0-9.-]+$' } } } } },
   async (req, reply) => {
-    const inv = approveHost(req.params.id, req.body.host);
+    const inv = await approveHost(req.params.id, req.body.host);
     if (!inv) return reply.code(404).send({ error: 'Nie znaleziono' });
     return { investigation: inv };
   },
@@ -151,29 +158,29 @@ app.post<{ Params: { id: string }; Body: { host: string } }>(
 
 app.post<{ Params: { id: string } }>('/api/investigations/:id/runs', async (req, reply) => {
   try {
-    return { runId: startRun(req.params.id, 'manual') };
+    return { runId: await startRun(req.params.id, 'manual') };
   } catch (e) {
     return reply.code(409).send({ error: e instanceof Error ? e.message : String(e) });
   }
 });
 
 app.get<{ Params: { id: string } }>('/api/runs/:id', async (req, reply) => {
-  const r = getRunResult(req.params.id);
+  const r = await getRunResult(req.params.id);
   if (!r) return reply.code(404).send({ error: 'Przebieg nie istnieje lub jeszcze trwa' });
   return r;
 });
 
 app.get<{ Params: { id: string } }>('/api/runs/:id/report.html', async (req, reply) => {
-  const r = getRunResult(req.params.id);
+  const r = await getRunResult(req.params.id);
   if (!r) return reply.code(404).send('Brak przebiegu');
-  audit('report.view', { runId: req.params.id });
+  await audit('report.view', { runId: req.params.id });
   return reply.type('text/html; charset=utf-8').send(renderReport(r.investigation, r.run, r.result));
 });
 
 app.get<{ Params: { id: string } }>('/api/runs/:id/export.json', async (req, reply) => {
-  const r = getRunResult(req.params.id);
+  const r = await getRunResult(req.params.id);
   if (!r) return reply.code(404).send({ error: 'Brak przebiegu' });
-  audit('export.json', { runId: req.params.id });
+  await audit('export.json', { runId: req.params.id });
   return reply
     .header('Content-Disposition', `attachment; filename="ogar-${r.investigation.name.replace(/[^\w-]+/g, '_')}-run${r.run.seq}.json"`)
     .type('application/json')
@@ -181,7 +188,7 @@ app.get<{ Params: { id: string } }>('/api/runs/:id/export.json', async (req, rep
 });
 
 app.get<{ Params: { id: string } }>('/api/runs/:id/export.csv', async (req, reply) => {
-  const r = getRunResult(req.params.id);
+  const r = await getRunResult(req.params.id);
   if (!r) return reply.code(404).send('Brak przebiegu');
   const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = [['siec', 'adres', 'wskaznik_pewnosci', 'przedzial', 'wykluczony', 'powod_wykluczenia', 'etykieta', 'zrodla', 'wskazniki_cash_out', 'liczba_tx'].join(';')];
@@ -195,26 +202,26 @@ app.get<{ Params: { id: string } }>('/api/runs/:id/export.csv', async (req, repl
 });
 
 app.get<{ Params: { id: string; docId: string } }>('/api/runs/:id/documents/:docId', async (req, reply) => {
-  const d = getDocument(req.params.id, req.params.docId);
+  const d = await getDocument(req.params.id, req.params.docId);
   if (!d) return reply.code(404).send({ error: 'Brak dokumentu' });
   return d;
 });
 
 app.get<{ Querystring: { a: string; b: string } }>('/api/compare', async (req, reply) => {
   try {
-    return compareRuns(req.query.a, req.query.b);
+    return await compareRuns(req.query.a, req.query.b);
   } catch (e) {
     return reply.code(400).send({ error: e instanceof Error ? e.message : String(e) });
   }
 });
 
-app.get('/api/labels', async () => listLabels());
+app.get('/api/labels', async () => await listLabels());
 app.post<{ Body: { chain: 'BTC' | 'ETH' | 'TRX' | 'LTC' | 'DOGE' | 'SOL' | 'XMR'; address: string; name: string; category: LabelCategory; note?: string } }>(
   '/api/labels',
   { schema: { body: { type: 'object', required: ['chain', 'address', 'name', 'category'], properties: { chain: { enum: ['BTC', 'ETH', 'TRX', 'LTC', 'DOGE', 'SOL', 'XMR'] }, address: { type: 'string', maxLength: 120 }, name: { type: 'string', maxLength: 200 }, category: { enum: Object.keys(CATEGORY_LABELS) }, note: { type: 'string', maxLength: 500 } } } } },
   async (req) => {
-    addCustomLabel(req.body.chain, req.body.address.trim(), req.body.name, req.body.category, req.body.note);
-    audit('label.add', req.body);
+    await addCustomLabel(req.body.chain, req.body.address.trim(), req.body.name, req.body.category, req.body.note);
+    await audit('label.add', req.body);
     return { ok: true };
   },
 );
@@ -224,7 +231,9 @@ app.post<{ Body: { text: string } }>('/api/extract', { schema: { body: { type: '
   identifiers: extractIdentifiers(req.body.text),
 }));
 
-app.get('/api/audit', async () => db().prepare('SELECT * FROM audit_log ORDER BY id DESC LIMIT 300').all());
+app.get('/api/audit', async () =>
+  (await db().query('SELECT id, ts, action, detail FROM audit_log ORDER BY id DESC LIMIT 300')).map((r) => ({ ...r, id: Number(r.id), ts: iso(r.ts) })),
+);
 
 // Frontend (po `npm run build`).
 const webDist = path.join(REPO_ROOT, 'apps', 'web', 'dist');
@@ -233,6 +242,9 @@ if (existsSync(webDist)) {
   app.setNotFoundHandler((req, reply) => (req.url.startsWith('/api/') ? reply.code(404).send({ error: 'Nie znaleziono' }) : reply.sendFile('index.html')));
 }
 
+// Baza (schemat) i etykiety analityków muszą być gotowe przed przyjęciem pierwszego żądania.
+await refreshCustomLabels();
+app.log.info(`Baza danych: ${db().kind === 'postgres' ? 'PostgreSQL (DATABASE_URL)' : `PostgreSQL wbudowany (PGlite, ${config.dbPath})`}`);
 startScheduler();
 await app.listen({ port: config.port, host: config.host });
 app.log.info(`OGAR API: http://${config.host}:${config.port}  (piaskownica: ${config.sandboxUrl})`);

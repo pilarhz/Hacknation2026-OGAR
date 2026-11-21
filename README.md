@@ -37,9 +37,16 @@ Narzędzie analityczne OSINT, które po podaniu identyfikatora (nick, e-mail, Te
 
 ## Szybki start
 
-Wymagania: **Node.js ≥ 22.18** (rekomendowany 24; używa wbudowanego `node:sqlite` i natywnego uruchamiania TypeScript). Nie potrzeba serwera bazy danych, GPU, kluczy API ani Dockera.
+Wymagania: **Node.js ≥ 22.18** (rekomendowany 24; natywne uruchamianie TypeScript). Nie potrzeba instalowania serwera bazy, GPU, kluczy API ani Dockera.
 
-> ⚠️ **Odstępstwo od wymagań technicznych:** zadanie wskazuje MySQL/PostgreSQL/MongoDB/MS SQL – prototyp używa SQLite (moduł `node:sqlite`, w Node wciąż eksperymentalny), żeby uruchamiał się bez instalacji. Zapytania używają składni SQLite, więc przejście na PostgreSQL wymaga przepisania warstwy `db/` i `engine/store.ts`.
+**Baza danych: PostgreSQL** – jeden schemat i te same zapytania w dwóch trybach:
+
+| Tryb | Kiedy | Silnik |
+|---|---|---|
+| Wbudowany (domyślnie) | `npm run dev` / `npm start` bez konfiguracji | [PGlite](https://pglite.dev) – PostgreSQL skompilowany do WebAssembly, działający w procesie Node; dane w `apps/api/data/pg` (`DB_PATH`) |
+| Serwer | ustawione `DATABASE_URL=postgres://…` (np. `docker compose`) | PostgreSQL 17 przez sterownik `pg` |
+
+Oba tryby są pokryte tym samym testem integracyjnym ([`test/store.test.ts`](apps/api/test/store.test.ts)), uruchomionym na PGlite i na serwerze PostgreSQL 17.12 w Dockerze.
 
 ```bash
 npm install
@@ -55,14 +62,17 @@ npm run sandbox &  # tylko do scenariuszy testowych
 npm start          # build frontendu + API na :8080
 ```
 
-Docker (**nieprzetestowane** – pliki przygotowane, ale obraz nie był budowany w trakcie hackathonu; linki w piaskownicy wskazują na `http://sandbox:4100`, więc nie otworzą się w przeglądarce hosta):
+Docker – pełny stos z serwerem PostgreSQL 17 (przetestowane: budowa obrazu, scenariusz 1 end-to-end, trwałość danych po restarcie):
 ```bash
-docker compose up --build   # api :8080 + piaskownica :4100
+docker compose up --build   # postgres + api :8080 + piaskownica :4100
 ```
+Aplikacja: **http://127.0.0.1:8080**. Hasło bazy domyślnie `ogar_lokalnie` – w innym środowisku ustaw `POSTGRES_PASSWORD` (np. w pliku `.env` obok `docker-compose.yml`). Port bazy nie jest wystawiany poza sieć kontenerów. Ograniczenie: linki do stron piaskownicy w wynikach wskazują na `http://sandbox:4100` (adres wewnątrz sieci kontenerów), więc nie otworzą się w przeglądarce – sama analiza działa.
 
 Testy i kontrola typów:
 ```bash
-npm test           # 29 testów: walidacja adresów i identyfikatorów, reguły scoringu, scenariusze end-to-end
+npm test           # 33 testy: walidacja adresów i identyfikatorów, reguły scoringu, scenariusze end-to-end, baza danych
+# ten sam test bazy na serwerze PostgreSQL (np. z docker compose):
+# DATABASE_URL=postgres://ogar:haslo@127.0.0.1:5432/ogar node --test apps/api/test/store.test.ts
 npm run typecheck
 ```
 
@@ -256,18 +266,18 @@ apps/
       ai/              wymienny dostawca AI (API zgodne z OpenAI, domyślnie wyłączony)
       report/          raport HTML
       http/fetcher.ts  jedyny punkt wyjścia do sieci: biała lista, limit tempa, cache, log
-      db/              SQLite (node:sqlite), SQL zgodny z PostgreSQL
+      db/              PostgreSQL: serwer (pg, DATABASE_URL) lub wbudowany (PGlite) – te same zapytania
     data/              labels.json, chain-fixtures.json (syntetyczne)
-    test/              node:test – 29 testów
+    test/              node:test – 33 testy
   web/                 React 19 + Vite
   sandbox/             syntetyczny "internet" do scenariuszy testowych
 ```
 
-Model danych: `investigations` (sprawa, identyfikatory, parametry, harmonogram, zatwierdzone hosty) → `runs` (przebieg z pełnym wynikiem JSON) → `documents` (treść + SHA-256 każdego pobranego dokumentu) oraz `http_cache`, `chain_cache`, `custom_labels`, `audit_log`.
+Model danych (PostgreSQL, [`db/db.ts`](apps/api/src/db/db.ts)): `investigations` (sprawa; identyfikatory i parametry w `JSONB`, harmonogram, zatwierdzone hosty) → `runs` (przebieg; pełny wynik w `JSONB`, numer przebiegu unikalny w sprawie) → `documents` (treść + SHA-256 każdego pobranego dokumentu) oraz `http_cache`, `chain_cache`, `custom_labels`, `audit_log` (`BIGSERIAL`). Klucze obce z `ON DELETE CASCADE` – usunięcie sprawy usuwa jej przebiegi i dokumenty. Lista spraw liczy statystyki i najwyższy wynik bezpośrednio w bazie (`jsonb_array_elements`), bez przesyłania pełnych wyników. Harmonogram przesuwa termin atomowo (`UPDATE … RETURNING`), więc przy kilku instancjach API przebieg nie uruchomi się podwójnie.
 
 **Wymiana modelu AI** odbywa się wyłącznie przez konfigurację (`AI_BASE_URL`, `AI_MODEL`). ⚠️ Integracja AI **nie była uruchomiona** z żadnym modelem w trakcie hackathonu (kod gotowy, nieprzetestowany). Działa z każdym serwerem zgodnym z OpenAI Chat Completions: Ollama, vLLM, LM Studio, llama.cpp server. AI wyłącznie **proponuje** kategorię kontekstu dla przypadków, w których reguły dały wynik domyślny (K8). Propozycja jest pokazywana obok reguły i nie zmienia wyniku, więc rezultat pozostaje wyjaśnialny i odtwarzalny. Treść analizowana trafia do modelu jako dane w roli `user`, a instrukcja systemowa nakazuje ignorować polecenia z treści (ochrona przed prompt injection).
 
-**Docelowo w środowisku KAS:** PostgreSQL zamiast SQLite (warstwa `db/`), lokalny model AI, SearXNG on-premise jako metawyszukiwarka, SSO przed API (`API_TOKEN` to tylko zabezpieczenie prototypu), kolejka zadań (np. BullMQ/RabbitMQ) przy wielu analitykach.
+**Docelowo w środowisku KAS:** serwer PostgreSQL w infrastrukturze KAS (`DATABASE_URL`), lokalny model AI, SearXNG on-premise jako metawyszukiwarka, SSO przed API (`API_TOKEN` to tylko zabezpieczenie prototypu), kolejka zadań (np. BullMQ/RabbitMQ) przy wielu analitykach.
 
 ---
 
@@ -326,7 +336,10 @@ Kod: MIT. Zależności (wszystkie open source):
 | vite, @vitejs/plugin-react | 6.4 / 4.7 | MIT |
 | Czcionki @fontsource: Saira Stencil One, Saira (variable), Source Sans 3, IBM Plex Mono | 5.3 | OFL-1.1 |
 | typescript | 5.9 | Apache-2.0 |
-| Node.js (`node:sqlite`, `node:test`) | 24 | MIT |
+| pg (sterownik serwera PostgreSQL) | 8.23 | MIT |
+| @electric-sql/pglite (wbudowany PostgreSQL) | 0.5 | Apache-2.0 |
+| PostgreSQL (serwer, obraz `postgres:17-alpine`) | 17 | PostgreSQL License |
+| Node.js (`node:test`) | 24 | MIT |
 
 Usługi zewnętrzne (publiczne, bez kluczy; korzystanie zgodnie z ich warunkami):
 
@@ -349,7 +362,7 @@ Usługi zewnętrzne (publiczne, bez kluczy; korzystanie zgodnie z ich warunkami)
 - **Na żywo działają głównie serwisy programistyczne** (GitHub, Keybase, Gravatar, Hacker News). Fora, ogłoszenia P2P i komunikatory – wymienione w zadaniu – są dziś pokryte tylko w piaskownicy. Najważniejsze brakujące źródła: **Bitcointalk** (publiczne profile z adresami BTC) i **publiczne kanały Telegram** (podgląd `t.me/s/{kanał}` działa bez logowania).
 - **Reddit** odrzuca dziś zapytania automatyczne bez OAuth (HTTP 403) – dlatego nie jest w domyślnym zestawie źródeł.
 - **Facebook, Instagram, TikTok, X, OLX** nie udostępniają wyszukiwania bez logowania; zgodnie z zasadami OSINT ich nie scrapujemy. Publiczne strony można podać jako URL.
-- **Nieprzetestowane:** dostawca AI, SearXNG, ścieżka Tronscan z kluczem (`TRONSCAN_API_KEY`), obraz Docker.
+- **Nieprzetestowane:** dostawca AI, SearXNG, ścieżka Tronscan z kluczem (`TRONSCAN_API_KEY`).
 - **Wykrywanie wyjścia do fiat** opiera się na etykietach – prawdziwe adresy depozytowe giełd są unikalne dla użytkownika i nieoznaczone; brakuje analizy „o jeden krok dalej” (depozyt → portfel giełdy). Brak też wyceny w PLN (kurs NBP na dzień transakcji), istotnej dla PIT-38.
 - **Portfele-kontrakty** (Safe, Argent) są wykluczane regułą E2 jak każdy kontrakt, choć mogą należeć do osoby. Adres EVM jest analizowany tylko w sieci Ethereum (BSC/Polygon – inny `BLOCKSCOUT_URL`).
 - Dane on-chain są analizowane na **próbce** (ostatnie 25–100 transakcji). Sumy wolumenu pochodzą ze statystyk eksploratora, a raport informuje o próbkowaniu. Dla BTC nie stosujemy heurystyk klastrowania (common-input) – to kierunek rozwoju.

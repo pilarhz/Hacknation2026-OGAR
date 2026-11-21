@@ -25,7 +25,10 @@ const list = (k: string, d: string) => env(k, d).split(',').map((s) => s.trim())
 export const config = {
   port: Number(env('PORT', '8080')),
   host: env('HOST', '127.0.0.1'),
-  dbPath: env('DB_PATH', path.join(API_ROOT, 'data', 'ogar.db')),
+  /** Serwer PostgreSQL (np. postgres://ogar:haslo@localhost:5432/ogar). Brak = wbudowany PostgreSQL (PGlite). */
+  databaseUrl: env('DATABASE_URL'),
+  /** Katalog danych wbudowanego PostgreSQL (PGlite); ":memory:" = baza w pamięci (testy). */
+  dbPath: env('DB_PATH', path.join(API_ROOT, 'data', 'pg')),
   /** Adres syntetycznego "internetu" do scenariuszy testowych. */
   sandboxUrl: env('SANDBOX_URL', 'http://127.0.0.1:4100'),
   /** Źródła włączone domyślnie (można nadpisać per analiza). */

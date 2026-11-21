@@ -1,7 +1,8 @@
-// Analizy (sprawy), przebiegi, cykliczne uruchamianie i porównywanie wyników.
-import { audit, db, json, newId, now } from '../db/db.ts';
+// Analizy (sprawy), przebiegi, cykliczne uruchamianie i porównywanie wyników (PostgreSQL).
+import { audit, db, iso, newId, now, toJsonb, type Row } from '../db/db.ts';
 import { config } from '../config.ts';
 import type { Identifier } from '../extract/identifiers.ts';
+import { refreshCustomLabels } from '../chain/labels.ts';
 import { DEFAULT_OPTIONS, runInvestigation, type InvestigationOptions, type RunResult } from './investigate.ts';
 
 export interface Investigation {
@@ -30,129 +31,155 @@ export interface RunRow {
 }
 
 const progress = new Map<string, string>();
+const nextRun = (minutes: number | null) => (minutes ? new Date(Date.now() + minutes * 60_000).toISOString() : null);
 
-function rowToInv(r: Record<string, unknown>): Investigation {
+function rowToInv(r: Row): Investigation {
   return {
     id: String(r.id),
     name: String(r.name),
     caseRef: (r.case_ref as string) ?? null,
-    createdAt: String(r.created_at),
-    updatedAt: String(r.updated_at),
+    createdAt: iso(r.created_at)!,
+    updatedAt: iso(r.updated_at)!,
     scheduleMinutes: (r.schedule_minutes as number) ?? null,
-    nextRunAt: (r.next_run_at as string) ?? null,
-    options: { ...DEFAULT_OPTIONS, ...json<Partial<InvestigationOptions>>(r.options_json, {}) },
-    seeds: json<Identifier[]>(r.seeds_json, []),
+    nextRunAt: iso(r.next_run_at),
+    options: { ...DEFAULT_OPTIONS, ...((r.options as Partial<InvestigationOptions>) ?? {}) },
+    seeds: (r.seeds as Identifier[]) ?? [],
   };
 }
 
-export function listInvestigations() {
-  const rows = db()
-    .prepare(
-      `SELECT i.*, (SELECT COUNT(*) FROM runs r WHERE r.investigation_id = i.id) AS run_count,
-              (SELECT r.result_json FROM runs r WHERE r.investigation_id = i.id AND r.status = 'done' ORDER BY seq DESC LIMIT 1) AS last_result,
-              (SELECT r.status FROM runs r WHERE r.investigation_id = i.id ORDER BY seq DESC LIMIT 1) AS last_status
-       FROM investigations i ORDER BY i.updated_at DESC`,
-    )
-    .all() as Record<string, unknown>[];
-  return rows.map((r) => {
-    const last = json<RunResult | null>(r.last_result, null);
-    return { ...rowToInv(r), runCount: Number(r.run_count), lastStatus: r.last_status ?? null, lastStats: last?.stats ?? null, topScore: last?.addresses.find((a) => !a.score.excluded)?.score.score ?? null };
-  });
-}
-
-export function getInvestigation(id: string): Investigation | null {
-  const r = db().prepare('SELECT * FROM investigations WHERE id = ?').get(id) as Record<string, unknown> | undefined;
-  return r ? rowToInv(r) : null;
-}
-
-export function createInvestigation(input: { name: string; caseRef?: string; seeds: Identifier[]; options?: Partial<InvestigationOptions>; scheduleMinutes?: number | null }): Investigation {
-  const id = newId();
-  const ts = now();
-  const sched = input.scheduleMinutes && input.scheduleMinutes > 0 ? input.scheduleMinutes : null;
-  db()
-    .prepare('INSERT INTO investigations (id, name, created_at, updated_at, schedule_minutes, next_run_at, options_json, seeds_json, case_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(id, input.name, ts, ts, sched, sched ? new Date(Date.now() + sched * 60_000).toISOString() : null, JSON.stringify({ ...DEFAULT_OPTIONS, ...input.options }), JSON.stringify(input.seeds), input.caseRef ?? null);
-  audit('investigation.create', { id, name: input.name, seeds: input.seeds.length });
-  return getInvestigation(id)!;
-}
-
-export function updateSchedule(id: string, minutes: number | null) {
-  const sched = minutes && minutes > 0 ? minutes : null;
-  db().prepare('UPDATE investigations SET schedule_minutes = ?, next_run_at = ?, updated_at = ? WHERE id = ?').run(sched, sched ? new Date(Date.now() + sched * 60_000).toISOString() : null, now(), id);
-  audit('investigation.schedule', { id, minutes: sched });
-}
-
-/** Analityk zatwierdza host strony ujawnionej w pivocie – zapisywane w parametrach analizy (audyt). */
-export function approveHost(id: string, host: string): Investigation | null {
-  const inv = getInvestigation(id);
-  if (!inv) return null;
-  const hosts = [...new Set([...(inv.options.approvedHosts ?? []), host.toLowerCase()])];
-  db().prepare('UPDATE investigations SET options_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify({ ...inv.options, approvedHosts: hosts }), now(), id);
-  audit('investigation.approve-host', { id, host });
-  return getInvestigation(id);
-}
-
-export function deleteInvestigation(id: string) {
-  db().prepare('DELETE FROM investigations WHERE id = ?').run(id);
-  audit('investigation.delete', { id });
-}
-
-export function listRuns(investigationId: string): RunRow[] {
-  const rows = db().prepare('SELECT id, investigation_id, seq, trigger, status, started_at, finished_at, error, result_json FROM runs WHERE investigation_id = ? ORDER BY seq DESC').all(investigationId) as Record<string, unknown>[];
-  return rows.map((r) => ({
+function rowToRun(r: Row): RunRow {
+  return {
     id: String(r.id),
     investigationId: String(r.investigation_id),
     seq: Number(r.seq),
     trigger: r.trigger as RunRow['trigger'],
     status: r.status as RunRow['status'],
-    startedAt: String(r.started_at),
-    finishedAt: (r.finished_at as string) ?? null,
+    startedAt: iso(r.started_at)!,
+    finishedAt: iso(r.finished_at),
     error: (r.error as string) ?? null,
-    progress: progress.get(String(r.id)),
-    stats: json<RunResult | null>(r.result_json, null)?.stats,
-  }));
-}
-
-export function getRunResult(runId: string): { run: RunRow; result: RunResult; investigation: Investigation } | null {
-  const r = db().prepare('SELECT * FROM runs WHERE id = ?').get(runId) as Record<string, unknown> | undefined;
-  if (!r || !r.result_json) return null;
-  const inv = getInvestigation(String(r.investigation_id));
-  if (!inv) return null;
-  return {
-    run: { id: String(r.id), investigationId: String(r.investigation_id), seq: Number(r.seq), trigger: r.trigger as RunRow['trigger'], status: r.status as RunRow['status'], startedAt: String(r.started_at), finishedAt: (r.finished_at as string) ?? null, error: (r.error as string) ?? null },
-    result: json<RunResult>(r.result_json, null as unknown as RunResult),
-    investigation: inv,
   };
 }
 
-export function getDocument(runId: string, docId: string) {
-  return db().prepare('SELECT * FROM documents WHERE run_id = ? AND id = ?').get(runId, `${runId}:${docId}`) as Record<string, unknown> | undefined;
+export async function listInvestigations() {
+  // Ostatni zakończony przebieg pobieramy częściowo (statystyki + najwyższy niewykluczony wynik),
+  // żeby lista spraw nie przesyłała z bazy pełnych wyników JSON.
+  const rows = await db().query(
+    `SELECT i.*,
+            (SELECT COUNT(*) FROM runs r WHERE r.investigation_id = i.id) AS run_count,
+            (SELECT r.status FROM runs r WHERE r.investigation_id = i.id ORDER BY seq DESC LIMIT 1) AS last_status,
+            last.result -> 'stats' AS last_stats,
+            (SELECT MAX((a -> 'score' ->> 'score')::int) FROM jsonb_array_elements(last.result -> 'addresses') a
+              WHERE NOT (a -> 'score' ->> 'excluded')::boolean) AS top_score
+     FROM investigations i
+     LEFT JOIN LATERAL (SELECT r.result FROM runs r WHERE r.investigation_id = i.id AND r.status = 'done' ORDER BY seq DESC LIMIT 1) last ON true
+     ORDER BY i.updated_at DESC`,
+  );
+  return rows.map((r) => ({
+    ...rowToInv(r),
+    runCount: Number(r.run_count),
+    lastStatus: (r.last_status as string) ?? null,
+    lastStats: (r.last_stats as Record<string, number>) ?? null,
+    topScore: r.top_score === null || r.top_score === undefined ? null : Number(r.top_score),
+  }));
+}
+
+export async function getInvestigation(id: string): Promise<Investigation | null> {
+  const r = await db().one('SELECT * FROM investigations WHERE id = $1', [id]);
+  return r ? rowToInv(r) : null;
+}
+
+export async function createInvestigation(input: { name: string; caseRef?: string; seeds: Identifier[]; options?: Partial<InvestigationOptions>; scheduleMinutes?: number | null }): Promise<Investigation> {
+  const id = newId();
+  const ts = now();
+  const sched = input.scheduleMinutes && input.scheduleMinutes > 0 ? input.scheduleMinutes : null;
+  await db().query(
+    `INSERT INTO investigations (id, name, case_ref, created_at, updated_at, schedule_minutes, next_run_at, options, seeds)
+     VALUES ($1, $2, $3, $4, $4, $5, $6, $7::jsonb, $8::jsonb)`,
+    [id, input.name, input.caseRef ?? null, ts, sched, nextRun(sched), toJsonb({ ...DEFAULT_OPTIONS, ...input.options }), toJsonb(input.seeds)],
+  );
+  await audit('investigation.create', { id, name: input.name, seeds: input.seeds.length });
+  return (await getInvestigation(id))!;
+}
+
+export async function updateSchedule(id: string, minutes: number | null) {
+  const sched = minutes && minutes > 0 ? minutes : null;
+  await db().query('UPDATE investigations SET schedule_minutes = $1, next_run_at = $2, updated_at = $3 WHERE id = $4', [sched, nextRun(sched), now(), id]);
+  await audit('investigation.schedule', { id, minutes: sched });
+}
+
+/** Analityk zatwierdza host strony ujawnionej w pivocie – zapisywane w parametrach analizy (audyt). */
+export async function approveHost(id: string, host: string): Promise<Investigation | null> {
+  const inv = await getInvestigation(id);
+  if (!inv) return null;
+  const hosts = [...new Set([...(inv.options.approvedHosts ?? []), host.toLowerCase()])];
+  await db().query('UPDATE investigations SET options = $1::jsonb, updated_at = $2 WHERE id = $3', [toJsonb({ ...inv.options, approvedHosts: hosts }), now(), id]);
+  await audit('investigation.approve-host', { id, host });
+  return getInvestigation(id);
+}
+
+export async function deleteInvestigation(id: string) {
+  await db().query('DELETE FROM investigations WHERE id = $1', [id]);
+  await audit('investigation.delete', { id });
+}
+
+export async function listRuns(investigationId: string): Promise<RunRow[]> {
+  const rows = await db().query(
+    `SELECT id, investigation_id, seq, trigger, status, started_at, finished_at, error, result -> 'stats' AS stats
+     FROM runs WHERE investigation_id = $1 ORDER BY seq DESC`,
+    [investigationId],
+  );
+  return rows.map((r) => ({ ...rowToRun(r), progress: progress.get(String(r.id)), stats: (r.stats as Record<string, number>) ?? undefined }));
+}
+
+export async function getRunResult(runId: string): Promise<{ run: RunRow; result: RunResult; investigation: Investigation } | null> {
+  const r = await db().one('SELECT * FROM runs WHERE id = $1', [runId]);
+  if (!r || !r.result) return null;
+  const inv = await getInvestigation(String(r.investigation_id));
+  if (!inv) return null;
+  return { run: rowToRun(r), result: r.result as RunResult, investigation: inv };
+}
+
+export async function getDocument(runId: string, docId: string) {
+  const d = await db().one('SELECT * FROM documents WHERE run_id = $1 AND id = $2', [runId, `${runId}:${docId}`]);
+  return d ? { ...d, fetched_at: iso(d.fetched_at) } : undefined;
 }
 
 const running = new Set<string>();
 
-/** Uruchamia przebieg w tle; zwraca id przebiegu natychmiast. */
-export function startRun(investigationId: string, trigger: RunRow['trigger']): string {
-  const inv = getInvestigation(investigationId);
+/** Uruchamia przebieg w tle; zwraca id przebiegu natychmiast po zapisaniu go w bazie. */
+export async function startRun(investigationId: string, trigger: RunRow['trigger']): Promise<string> {
+  const inv = await getInvestigation(investigationId);
   if (!inv) throw new Error('Nie znaleziono analizy');
   if (running.has(investigationId)) throw new Error('Przebieg tej analizy już trwa');
-  const seq = Number((db().prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM runs WHERE investigation_id = ?').get(investigationId) as { m: number }).m) + 1;
-  const runId = newId();
-  db().prepare('INSERT INTO runs (id, investigation_id, seq, trigger, status, started_at) VALUES (?, ?, ?, ?, ?, ?)').run(runId, investigationId, seq, trigger, 'running', now());
-  db().prepare('UPDATE investigations SET updated_at = ? WHERE id = ?').run(now(), investigationId);
-  audit('run.start', { investigationId, runId, seq, trigger });
   running.add(investigationId);
+  const runId = newId();
+  try {
+    const last = await db().one<{ m: number }>('SELECT COALESCE(MAX(seq), 0) AS m FROM runs WHERE investigation_id = $1', [investigationId]);
+    const seq = Number(last?.m ?? 0) + 1;
+    await db().query('INSERT INTO runs (id, investigation_id, seq, trigger, status, started_at) VALUES ($1, $2, $3, $4, $5, $6)', [runId, investigationId, seq, trigger, 'running', now()]);
+    await db().query('UPDATE investigations SET updated_at = $1 WHERE id = $2', [now(), investigationId]);
+    await audit('run.start', { investigationId, runId, seq, trigger });
+  } catch (e) {
+    running.delete(investigationId);
+    throw e;
+  }
   void (async () => {
     try {
+      await refreshCustomLabels(); // etykiety analityków aktualne na start przebiegu
       const { result, storedDocs } = await runInvestigation(inv.seeds, inv.options, (m) => progress.set(runId, m));
-      const ins = db().prepare('INSERT INTO documents (id, run_id, source, url, title, author, published_at, fetched_at, sha256, content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const d of storedDocs) ins.run(`${runId}:${d.id}`, runId, d.source, d.url, d.title, d.author ?? null, d.publishedAt ?? null, d.fetchedAt, d.sha256, d.content);
-      db().prepare('UPDATE runs SET status = ?, finished_at = ?, result_json = ? WHERE id = ?').run('done', now(), JSON.stringify(result), runId);
-      audit('run.done', { runId, stats: result.stats });
+      for (const d of storedDocs)
+        await db().query(
+          'INSERT INTO documents (id, run_id, source, url, title, author, published_at, fetched_at, sha256, content) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+          [`${runId}:${d.id}`, runId, d.source, d.url, d.title, d.author ?? null, d.publishedAt ?? null, d.fetchedAt, d.sha256, d.content],
+        );
+      await db().query('UPDATE runs SET status = $1, finished_at = $2, result = $3::jsonb WHERE id = $4', ['done', now(), toJsonb(result), runId]);
+      await audit('run.done', { runId, stats: result.stats });
     } catch (e) {
       const msg = e instanceof Error ? (e.stack ?? e.message) : String(e);
-      db().prepare('UPDATE runs SET status = ?, finished_at = ?, error = ? WHERE id = ?').run('error', now(), msg, runId);
-      audit('run.error', { runId, error: msg });
+      await db()
+        .query('UPDATE runs SET status = $1, finished_at = $2, error = $3 WHERE id = $4', ['error', now(), msg, runId])
+        .catch(() => {});
+      await audit('run.error', { runId, error: msg });
     } finally {
       running.delete(investigationId);
       progress.delete(runId);
@@ -162,9 +189,9 @@ export function startRun(investigationId: string, trigger: RunRow['trigger']): s
 }
 
 // ---------------- Porównanie przebiegów ----------------
-export function compareRuns(aId: string, bId: string) {
-  const a = getRunResult(aId);
-  const b = getRunResult(bId);
+export async function compareRuns(aId: string, bId: string) {
+  const a = await getRunResult(aId);
+  const b = await getRunResult(bId);
   if (!a || !b) throw new Error('Nie znaleziono przebiegu');
   const ka = new Map(a.result.addresses.map((x) => [x.key, x]));
   const kb = new Map(b.result.addresses.map((x) => [x.key, x]));
@@ -215,15 +242,21 @@ export function compareRuns(aId: string, bId: string) {
 
 // ---------------- Harmonogram (cykliczne analizy) ----------------
 export function startScheduler(): NodeJS.Timeout {
-  return setInterval(() => {
-    const due = db().prepare("SELECT id, schedule_minutes FROM investigations WHERE schedule_minutes IS NOT NULL AND next_run_at <= ?").all(now()) as { id: string; schedule_minutes: number }[];
-    for (const d of due) {
-      db().prepare('UPDATE investigations SET next_run_at = ? WHERE id = ?').run(new Date(Date.now() + d.schedule_minutes * 60_000).toISOString(), d.id);
-      try {
-        startRun(d.id, 'schedule');
-      } catch {
-        /* przebieg już trwa – następna próba w kolejnym cyklu */
-      }
+  let busy = false;
+  return setInterval(async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      // UPDATE … RETURNING: termin przesuwany atomowo – przy kilku instancjach API przebieg nie uruchomi się podwójnie.
+      const due = await db().query<{ id: string }>(
+        `UPDATE investigations SET next_run_at = now() + make_interval(mins => schedule_minutes)
+         WHERE schedule_minutes IS NOT NULL AND next_run_at <= now() RETURNING id`,
+      );
+      for (const d of due) await startRun(d.id, 'schedule').catch(() => {}); // przebieg już trwa – kolejna próba w następnym cyklu
+    } catch {
+      /* baza chwilowo niedostępna – kolejna próba w następnym cyklu */
+    } finally {
+      busy = false;
     }
   }, config.schedulerTickMs);
 }

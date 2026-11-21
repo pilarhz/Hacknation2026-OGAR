@@ -1,16 +1,34 @@
 services:
+  # Baza danych: PostgreSQL 17. Hasło można nadpisać zmienną POSTGRES_PASSWORD (np. w pliku .env obok tego pliku).
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ogar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ogar_lokalnie}
+      POSTGRES_DB: ogar
+    volumes:
+      - ogar-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ogar -d ogar"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    # Port bazy nie jest wystawiany na hosta – dostęp ma tylko kontener api.
+
   api:
     build: .
     ports:
       - "127.0.0.1:8080:8080"
     environment:
+      DATABASE_URL: postgres://ogar:${POSTGRES_PASSWORD:-ogar_lokalnie}@postgres:5432/ogar
       SANDBOX_URL: http://sandbox:4100
       # AI_PROVIDER: openai-compatible
       # AI_BASE_URL: http://ollama:11434/v1
-    volumes:
-      - ogar-data:/data
     depends_on:
-      - sandbox
+      postgres:
+        condition: service_healthy
+      sandbox:
+        condition: service_started
 
   sandbox:
     build: .
@@ -28,4 +46,4 @@ services:
   #   volumes: [ollama:/root/.ollama]
 
 volumes:
-  ogar-data:
+  ogar-pg:

@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { API_ROOT, config } from '../config.ts';
-import { db, json, now } from '../db/db.ts';
+import { db, iso, now, toJsonb } from '../db/db.ts';
 import { currentCacheSince, fetchJson, type RequestLogEntry } from '../http/fetcher.ts';
 import { categorizeExplorerTag, lookupLabel } from './labels.ts';
 import type { AddressLabel, ChainSummary, ChainTx } from './types.ts';
@@ -287,10 +287,9 @@ export async function getChainSummary(chain: Chain, address: string, log: Reques
   if (fx) return fromFixture(chain, address, fx);
 
   const key = fixtureKey(chain, address);
-  const cached = db().prepare('SELECT fetched_at, data_json FROM chain_cache WHERE key = ?').get(key) as { fetched_at: string; data_json: string } | undefined;
-  if (cached && Date.now() - Date.parse(cached.fetched_at) < config.cacheTtlMinutes * 60_000 && Date.parse(cached.fetched_at) >= currentCacheSince()) {
-    return json<ChainSummary>(cached.data_json, emptySummary(chain, address, 'cache', chain));
-  }
+  const cached = await db().one<{ fetched_at: unknown; data: ChainSummary }>('SELECT fetched_at, data FROM chain_cache WHERE key = $1', [key]);
+  const cachedAt = cached ? Date.parse(iso(cached.fetched_at)!) : 0;
+  if (cached && Date.now() - cachedAt < config.cacheTtlMinutes * 60_000 && cachedAt >= currentCacheSince()) return cached.data;
   const native = chain === 'LTC' ? 'LTC' : chain === 'DOGE' ? 'DOGE' : chain === 'SOL' ? 'SOL' : chain === 'XMR' ? 'XMR' : chain;
   if (!config.chainLive) {
     const s = emptySummary(chain, address, 'brak (CHAIN_LIVE=false)', native);
@@ -315,6 +314,10 @@ export async function getChainSummary(chain: Chain, address: string, log: Reques
     s.error = `Nie udało się pobrać danych on-chain: ${e instanceof Error ? e.message : String(e)}`;
     return s;
   }
-  db().prepare('INSERT OR REPLACE INTO chain_cache (key, fetched_at, data_json) VALUES (?, ?, ?)').run(key, s.fetchedAt, JSON.stringify(s));
+  await db().query(
+    `INSERT INTO chain_cache (key, fetched_at, data) VALUES ($1, $2, $3::jsonb)
+     ON CONFLICT (key) DO UPDATE SET fetched_at = EXCLUDED.fetched_at, data = EXCLUDED.data`,
+    [key, s.fetchedAt, toJsonb(s)],
+  );
   return s;
 }

@@ -5,7 +5,7 @@
 // - rejestr wszystkich zapytań w logu przebiegu.
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { config } from '../config.ts';
-import { db, now } from '../db/db.ts';
+import { db, iso, now } from '../db/db.ts';
 
 export interface FetchResult {
   url: string;
@@ -91,13 +91,12 @@ export async function fetchText(
   const useCache = opts.useCache ?? true;
   const local = /^(127\.0\.0\.1|localhost)$/.test(new URL(url).hostname);
   if (useCache && !local) {
-    const row = db().prepare('SELECT * FROM http_cache WHERE url = ?').get(url) as
-      | { fetched_at: string; status: number; content_type: string; body: string }
-      | undefined;
-    const fetched = row ? Date.parse(row.fetched_at) : 0;
+    const row = await db().one<{ fetched_at: unknown; status: number; content_type: string; body: string }>('SELECT * FROM http_cache WHERE url = $1', [url]);
+    const fetchedAt = row ? iso(row.fetched_at)! : '';
+    const fetched = row ? Date.parse(fetchedAt) : 0;
     if (row && Date.now() - fetched < config.cacheTtlMinutes * 60_000 && fetched >= currentCacheSince()) {
       opts.log?.push({ ts: now(), url, status: row.status, cache: true, ms: 0 });
-      return { url, status: row.status, contentType: row.content_type, body: row.body, fetchedAt: row.fetched_at, fromCache: true };
+      return { url, status: row.status, contentType: row.content_type, body: row.body, fetchedAt, fromCache: true };
     }
   }
   const host = new URL(url).hostname;
@@ -118,9 +117,11 @@ export async function fetchText(
     const contentType = res.headers.get('content-type') ?? '';
     opts.log?.push({ ts: fetchedAt, url, status: res.status, cache: false, ms: Date.now() - started });
     if (res.ok && !local) {
-      db()
-        .prepare('INSERT OR REPLACE INTO http_cache (url, fetched_at, status, content_type, body) VALUES (?, ?, ?, ?, ?)')
-        .run(url, fetchedAt, res.status, contentType, body);
+      await db().query(
+        `INSERT INTO http_cache (url, fetched_at, status, content_type, body) VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (url) DO UPDATE SET fetched_at = EXCLUDED.fetched_at, status = EXCLUDED.status, content_type = EXCLUDED.content_type, body = EXCLUDED.body`,
+        [url, fetchedAt, res.status, contentType, body],
+      );
     }
     return { url, status: res.status, contentType, body, fetchedAt, fromCache: false };
   } catch (e) {

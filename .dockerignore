@@ -3,6 +3,7 @@ node_modules
 apps/web/dist
 *.db
 *.db-*
+apps/api/data/pg
 .env
 .git
 .claude

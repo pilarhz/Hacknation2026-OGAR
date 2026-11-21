@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { API_ROOT } from '../config.ts';
-import { db, now } from '../db/db.ts';
+import { db, iso, now } from '../db/db.ts';
 import type { AddressLabel, LabelCategory } from './types.ts';
 import type { Chain } from '../extract/addresses.ts';
 
@@ -24,23 +24,34 @@ function seedLabels(): Map<string, AddressLabel> {
   return seed;
 }
 
+// Etykiety analityków trzymamy w pamięci (odświeżane z bazy na start przebiegu i po każdej zmianie):
+// sprawdzanie etykiety odbywa się dla każdego kontrahenta każdej transakcji, więc musi być szybkie
+// i synchroniczne, a liczba etykiet jest niewielka.
+let custom = new Map<string, AddressLabel>();
+
+export async function refreshCustomLabels(): Promise<void> {
+  const rows = await db().query<{ key: string; name: string; category: LabelCategory }>('SELECT key, name, category FROM custom_labels');
+  custom = new Map(rows.map((r) => [r.key, { name: r.name, category: r.category, origin: 'analyst' as const }]));
+}
+
 export function lookupLabel(chain: string, address: string): AddressLabel | null {
   const key = keyOf(chain, address);
-  const custom = db().prepare('SELECT name, category FROM custom_labels WHERE key = ?').get(key) as { name: string; category: LabelCategory } | undefined;
-  if (custom) return { name: custom.name, category: custom.category, origin: 'analyst' };
-  return seedLabels().get(key) ?? null;
+  return custom.get(key) ?? seedLabels().get(key) ?? null;
 }
 
-export function addCustomLabel(chain: Chain, address: string, name: string, category: LabelCategory, note?: string) {
-  db()
-    .prepare('INSERT OR REPLACE INTO custom_labels (key, chain, address, name, category, note, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(keyOf(chain, address), chain, address, name, category, note ?? null, now());
+export async function addCustomLabel(chain: Chain, address: string, name: string, category: LabelCategory, note?: string) {
+  await db().query(
+    `INSERT INTO custom_labels (key, chain, address, name, category, note, added_at) VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (key) DO UPDATE SET name = EXCLUDED.name, category = EXCLUDED.category, note = EXCLUDED.note, added_at = EXCLUDED.added_at`,
+    [keyOf(chain, address), chain, address, name, category, note ?? null, now()],
+  );
+  await refreshCustomLabels();
 }
 
-export function listLabels() {
-  const custom = db().prepare('SELECT chain, address, name, category, note, added_at FROM custom_labels ORDER BY added_at DESC').all();
+export async function listLabels() {
+  const rows = await db().query('SELECT chain, address, name, category, note, added_at FROM custom_labels ORDER BY added_at DESC');
   const seeds = [...seedLabels().entries()].map(([k, v]) => ({ chain: k.split(':')[0], address: k.split(':').slice(1).join(':'), ...v }));
-  return { custom, seed: seeds };
+  return { custom: rows.map((r) => ({ ...r, added_at: iso(r.added_at) })), seed: seeds };
 }
 
 /** Mapowanie tagów zwracanych przez eksploratory na nasze kategorie. */
