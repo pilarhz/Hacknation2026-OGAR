@@ -115,7 +115,7 @@ export function App() {
           <nav className="nav" aria-label="Informacje" style={{ margin: '6px -8px 2px' }}>
             {link('/about', 'O programie', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 11v5M12 8v.01" />)}
           </nav>
-          <span>Motyw</span>
+          <span className="theme-label">Motyw</span>
           <div className="seg" role="radiogroup" aria-label="Motyw interfejsu">
             {(
               [
