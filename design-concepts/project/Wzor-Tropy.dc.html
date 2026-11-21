@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Panel — tropy ogara</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 536px; height: 848px; box-sizing: border-box; padding: 24px; display: flex; gap: 24px; background: #E6EAF0; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px">
+  <sc-for list="{{themes}}" as="th" hint-placeholder-count="2">
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #33445C">{{th.label}}</span>
+      <aside style="{{th.aside}}">
+        <div aria-hidden="true" style="{{th.layer}}">
+          <svg width="232" height="420" viewBox="0 0 232 420" style="display: block" fill="currentColor">
+            <path d="M40 420 C 70 360, 170 330, 150 260 S 60 160, 120 40" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 6" stroke-opacity="0.7"></path>
+            <sc-for list="{{th.paws}}" as="p" hint-placeholder-count="10">
+              <g transform="{{p.t}}">
+                <ellipse cx="0" cy="4" rx="6" ry="5"></ellipse>
+                <ellipse cx="-6.5" cy="-3" rx="2.3" ry="2.9"></ellipse>
+                <ellipse cx="-2.3" cy="-7.5" rx="2.3" ry="2.9"></ellipse>
+                <ellipse cx="2.3" cy="-7.5" rx="2.3" ry="2.9"></ellipse>
+                <ellipse cx="6.5" cy="-3" rx="2.3" ry="2.9"></ellipse>
+              </g>
+            </sc-for>
+          </svg>
+        </div>
+        <div style="position: relative; z-index: 1; height: 100%; box-sizing: border-box; padding: 20px 12px 14px; display: flex; flex-direction: column; gap: 2px">
+          <sc-for list="{{th.nav}}" as="n" hint-placeholder-count="4"><a href="#" style="{{n.style}}">{{n.label}}</a></sc-for>
+          <span style="{{th.group}}">Ostatnie sprawy</span>
+          <sc-for list="{{th.recent}}" as="r" hint-placeholder-count="4"><a href="#" style="{{th.recentStyle}}"><span>{{r.name}}</span><span style="{{th.mono}}">{{r.score}}</span></a></sc-for>
+          <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px">
+            <div style="{{th.status}}"><span style="display: flex; align-items: center; gap: 6px"><span style="{{th.dotOff}}"></span>AI: wyłączone</span><span style="display: flex; align-items: center; gap: 6px"><span style="{{th.dotOn}}"></span>on-chain: publiczne API</span></div>
+            <div style="{{th.about}}">O programie</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":536,"height":848}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // tropy idą wzdłuż krzywej (ta sama co kreskowana ścieżka), na zmianę lewa / prawa łapa
+    const bez = (t, a, b, c, d) => (1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t * t * c + t ** 3 * d;
+    const seg = [[[40, 420], [70, 360], [170, 330], [150, 260]], [[150, 260], [130, 190], [60, 160], [120, 40]]];
+    const paws = [];
+    const n = 11;
+    for (let i = 0; i < n; i++) {
+      const u = (i + 0.4) / n * 2, s = seg[Math.min(1, Math.floor(u))], t = u - Math.min(1, Math.floor(u));
+      const x = bez(t, s[0][0], s[1][0], s[2][0], s[3][0]), y = bez(t, s[0][1], s[1][1], s[2][1], s[3][1]);
+      const t2 = Math.min(1, t + 0.02), x2 = bez(t2, s[0][0], s[1][0], s[2][0], s[3][0]), y2 = bez(t2, s[0][1], s[1][1], s[2][1], s[3][1]);
+      const ang = Math.atan2(y2 - y, x2 - x), deg = ang * 180 / Math.PI + 90, side = i % 2 ? 1 : -1;
+      const ox = Math.cos(ang + Math.PI / 2) * 9 * side, oy = Math.sin(ang + Math.PI / 2) * 9 * side;
+      paws.push({ t: 'translate(' + (x + ox).toFixed(1) + ' ' + (y + oy).toFixed(1) + ') rotate(' + deg.toFixed(0) + ') scale(' + (0.95 - i * 0.025).toFixed(2) + ')' });
+    }
+    const mk = (label, c) => ({
+      label, paws,
+      aside: 'position:relative;width:232px;height:760px;border-radius:8px;overflow:hidden;border:1px solid ' + c.line + ';background:' + c.bg,
+      layer: 'position:absolute;left:0;right:0;bottom:0;height:420px;pointer-events:none;color:' + c.pat + ';-webkit-mask-image:linear-gradient(to top,#000 0%,rgba(0,0,0,.6) 40%,transparent 100%);mask-image:linear-gradient(to top,#000 0%,rgba(0,0,0,.6) 40%,transparent 100%)',
+      nav: ['Analizy', 'Ekstraktor adresów', 'Etykiety adresów', 'Metodyka'].map((l, i) => ({ label: l, style: 'display:block;padding:9px 12px;border-radius:6px;text-decoration:none;color:' + (i === 0 ? c.ink : c.ink2) + (i === 0 ? ';background:' + c.active + ';box-shadow:inset 2px 0 0 ' + c.brand : '') })),
+      group: 'font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:' + c.muted + ';padding:22px 12px 8px',
+      recent: [['kryptoMarek88', '87%'], ['anna.k@proton.me', '64%'], ['TQm8…2fWd', '72%'], ['@zbiorka_btc', '41%']].map(([name, score]) => ({ name, score })),
+      recentStyle: 'display:flex;justify-content:space-between;gap:8px;padding:7px 12px;font-size:13px;text-decoration:none;color:' + c.ink2,
+      mono: "font-family:'IBM Plex Mono',monospace;font-size:12px;color:" + c.muted,
+      status: "display:flex;flex-direction:column;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:" + c.ink2,
+      dotOff: 'width:8px;height:8px;border-radius:50%;background:#6B7684',
+      dotOn: 'width:8px;height:8px;border-radius:50%;background:' + c.ok + ';box-shadow:0 0 0 2px ' + c.okSoft + ',0 0 6px 1px ' + c.ok,
+      about: 'text-align:center;padding:12px 12px 0;border-top:1px solid ' + c.line + ';color:' + c.ink2
+    });
+    return { themes: [
+      mk('Jasny', { bg: '#F3F5F8', line: '#DAE0E8', ink: '#0B1B33', ink2: '#33445C', muted: '#56657A', active: '#E3E9F1', brand: '#C62F35', ok: '#1A6B3C', okSoft: 'rgba(26,107,60,.2)', pat: 'rgba(11,58,117,.22)' }),
+      mk('Ciemny', { bg: '#0A1220', line: '#22324C', ink: '#E7ECF3', ink2: '#B6C2D3', muted: '#8D9AAE', active: '#17263F', brand: '#D13B40', ok: '#4CC27A', okSoft: 'rgba(76,194,122,.22)', pat: 'rgba(108,166,255,.26)' })
+    ] };
+  }
+}
+</script>
+</body>
+</html>

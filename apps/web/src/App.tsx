@@ -123,6 +123,7 @@ export function App() {
       </header>
       <div className="workspace">
         <aside className="sidenav">
+          <SidenavPattern />
           <nav className="nav" aria-label="Główna nawigacja">
             {link('/', 'Analizy', <Icon d="M3 7h18M3 12h18M3 17h12" />)}
             {link('/extract', 'Ekstraktor adresów', <Icon d="M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3" />)}
@@ -182,6 +183,46 @@ function RecentCases({ current }: { current?: string }) {
 
 const SUN = 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4';
 const MOON = 'M21 13A9 9 0 1111 3a7 7 0 0010 10z';
+
+// Tło menu bocznego: „sieć powiązań" (węzły i krawędzie), zanikająca od dołu do góry (maska w CSS).
+// Układ jest deterministyczny (stałe ziarno), więc wzór wygląda tak samo przy każdym odświeżeniu.
+const NET = (() => {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const pts = Array.from({ length: 26 }, () => ({ x: 14 + rnd() * 204, y: 412 - Math.pow(rnd(), 1.5) * 400 }));
+  const seen = new Set<string>();
+  const edges: [number, number][] = [];
+  pts.forEach((p, i) => {
+    pts
+      .map((q, j) => ({ j, d: (p.x - q.x) ** 2 + (p.y - q.y) ** 2 }))
+      .filter((o) => o.j !== i)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 2)
+      .forEach(({ j }) => {
+        const k = `${Math.min(i, j)}-${Math.max(i, j)}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          edges.push([i, j]);
+        }
+      });
+  });
+  return { pts, edges, hot: new Set([3, 11, 19]) };
+})();
+
+function SidenavPattern() {
+  return (
+    <div className="sidenav-pattern" aria-hidden>
+      <svg viewBox="0 0 232 420" preserveAspectRatio="xMidYMax slice">
+        {NET.edges.map(([i, j]) => (
+          <line key={`${i}-${j}`} x1={NET.pts[i].x} y1={NET.pts[i].y} x2={NET.pts[j].x} y2={NET.pts[j].y} />
+        ))}
+        {NET.pts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={NET.hot.has(i) ? 4 : i % 3 === 0 ? 3 : 2.2} className={NET.hot.has(i) ? 'hot' : undefined} />
+        ))}
+      </svg>
+    </div>
+  );
+}
 
 function Icon({ d }: { d: string }) {
   return (
