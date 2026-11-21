@@ -10,7 +10,7 @@ export function MethodPage({ meta }: { meta: Meta }) {
       </div>
       <div className="grid2">
         <div className="panel">
-          <h3 style={{ marginTop: 0 }}>1. Przebieg analizy</h3>
+          <h3>1. Przebieg analizy</h3>
           <ol>
             <li><b>Wyszukiwanie</b> – każde źródło przyjmuje określone typy identyfikatorów (nick, e-mail, adres…). Wyniki to dokumenty z URL, czasem pobrania i SHA-256 treści.</li>
             <li><b>Pivot</b> – identyfikatory ujawnione w dokumentach należących do badanego (e-mail w profilu, Telegram w ogłoszeniu) są wyszukiwane w kolejnym kroku (do zadanej głębokości).</li>
@@ -23,7 +23,7 @@ export function MethodPage({ meta }: { meta: Meta }) {
           </ol>
         </div>
         <div className="panel">
-          <h3 style={{ marginTop: 0 }}>2. Wskaźnik Pewności – wartość bazowa (kontekst publikacji)</h3>
+          <h3>2. Wskaźnik Pewności – wartość bazowa (kontekst publikacji)</h3>
           <table>
             <tbody>
               {Object.entries(meta.contexts).map(([k, c]) => (
@@ -51,7 +51,7 @@ export function MethodPage({ meta }: { meta: Meta }) {
         </div>
       </div>
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>4. Wskaźniki wyjścia do walut tradycyjnych (Fiat Cash-Out)</h3>
+        <h3>4. Wskaźniki wyjścia do walut tradycyjnych (Fiat Cash-Out)</h3>
         <ul>
           <li><b>CEX_OUTFLOW</b> – wpłata na adres giełdy scentralizowanej (zwykle poprzedza sprzedaż za fiat; dane KYC u giełdy).</li>
           <li><b>OFFRAMP / P2P</b> – interakcja z kantorem, bramką krypto-fiat, kartą krypto lub platformą P2P.</li>

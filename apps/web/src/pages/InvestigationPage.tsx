@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, fmtDate, fmtNum, shortAddr, type CompareResult, type Investigation, type Meta, type RunResult, type RunRow } from '../api.ts';
 import { go } from '../App.tsx';
 import { ScoreBadge, ScoreBar, BAND_SHORT } from '../components/Score.tsx';
 import { AddressDetail } from '../components/AddressDetail.tsx';
-import { Graph } from '../components/Graph.tsx';
+// cytoscape to większość rozmiaru bundla – ładujemy go dopiero po otwarciu zakładki "Graf".
+const Graph = lazy(() => import('../components/Graph.tsx').then((m) => ({ default: m.Graph })));
 
 type Tab = 'summary' | 'addresses' | 'graph' | 'timeline' | 'sources' | 'compare' | 'log';
 
@@ -195,7 +196,9 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
           {tab === 'addresses' && <Addresses r={result} meta={meta} selected={selected} setSelected={setSelected} openDoc={openDoc} />}
           {tab === 'graph' && (
             <div className="panel">
-              <Graph graph={result.graph} onSelect={(nid) => { if (nid.startsWith('addr:')) { setSelected(nid.slice(5)); setTab('addresses'); } }} />
+              <Suspense fallback={<div className="empty">Ładowanie grafu…</div>}>
+                <Graph graph={result.graph} onSelect={(nid) => { if (nid.startsWith('addr:')) { setSelected(nid.slice(5)); setTab('addresses'); } }} />
+              </Suspense>
             </div>
           )}
           {tab === 'timeline' && <Timeline r={result} meta={meta} />}
@@ -208,7 +211,7 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
       {doc && (
         <div className="modal-bg" onClick={() => setDoc(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="row" style={{ justifyContent: 'space-between' }}>
+            <div className="row between">
               <h3 style={{ margin: 0 }}>{doc.title}</h3>
               <button onClick={() => setDoc(null)}>Zamknij</button>
             </div>
@@ -270,7 +273,7 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
       </div>
       <div className="grid2">
         <div className="panel">
-          <h3 style={{ marginTop: 0 }}>Adresy powiązane z badanym</h3>
+          <h3>Adresy powiązane z badanym</h3>
           {top.length === 0 && <div className="muted">Brak adresów z wynikiem ≥ 40%.</div>}
           <table>
             <tbody>
@@ -288,7 +291,7 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
           </table>
         </div>
         <div className="panel">
-          <h3 style={{ marginTop: 0 }}>Wnioski wymagające weryfikacji</h3>
+          <h3>Wnioski wymagające weryfikacji</h3>
           {r.conclusions.length === 0 && <div className="muted">Brak.</div>}
           {r.conclusions.map((c, i) => (
             <div key={i} className="conclusion">
@@ -323,7 +326,7 @@ function Addresses({ r, meta, selected, setSelected, openDoc }: { r: RunResult; 
   const sel = r.addresses.find((a) => a.key === selected);
   return (
     <div className="grid2" style={{ gridTemplateColumns: '440px 1fr' }}>
-      <div className="panel" style={{ padding: 0 }}>
+      <div className="panel flush">
         <div className="row" style={{ padding: 10 }}>
           {(['all', 'attributed', 'excluded'] as const).map((f) => (
             <button key={f} className={filter === f ? 'primary' : ''} onClick={() => setFilter(f)} style={{ padding: '3px 10px' }}>
@@ -356,7 +359,7 @@ function Addresses({ r, meta, selected, setSelected, openDoc }: { r: RunResult; 
 
 function Timeline({ r, meta }: { r: RunResult; meta: Meta }) {
   return (
-    <div className="panel" style={{ padding: 0 }}>
+    <div className="panel flush">
       <div style={{ padding: '10px 14px' }} className="small muted">
         Chronologiczny przepływ środków na adresach przypisanych badanemu (≥40%). Wiersze 💶 wskazują możliwe wyjście do walut tradycyjnych.
       </div>
@@ -388,7 +391,7 @@ function Timeline({ r, meta }: { r: RunResult; meta: Meta }) {
 function Sources({ r, openDoc }: { r: RunResult; openDoc: (d: string) => void }) {
   return (
     <>
-      <div className="panel" style={{ padding: 0 }}>
+      <div className="panel flush">
         <table>
           <thead>
             <tr><th>Dok.</th><th>Źródło / tytuł</th><th>Typ</th><th>Autor</th><th>Należy do badanego</th><th>Adresy</th><th>Pobrano / SHA-256</th></tr>
@@ -413,7 +416,7 @@ function Sources({ r, openDoc }: { r: RunResult; openDoc: (d: string) => void })
         </table>
       </div>
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Konta i potwierdzenie tożsamości</h3>
+        <h3>Konta i potwierdzenie tożsamości</h3>
         <div className="small muted" style={{ marginBottom: 8 }}>
           Konta łączone są wyłącznie twardymi powiązaniami (odnośnik, wspólny e-mail/Telegram/telefon, dowód Keybase, dane wejściowe). Konto połączone z badanym tylko zgodnym nickiem dostaje karę R9.
         </div>
@@ -525,7 +528,7 @@ function Compare({ runs, current }: { runs: RunRow[]; current: string }) {
 
 function Log({ r }: { r: RunResult }) {
   return (
-    <div className="panel" style={{ padding: 0 }}>
+    <div className="panel flush">
       <div style={{ padding: '10px 14px' }} className="small muted">
         Wszystkie zapytania sieciowe przebiegu (biała lista hostów: {String(r.configSnapshot.allowedHosts ?? '').split(',').length} pozycji). Silnik v{r.engineVersion}, {fmtDate(r.startedAt)} – {fmtDate(r.finishedAt)}.
       </div>

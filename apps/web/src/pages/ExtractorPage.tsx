@@ -26,7 +26,7 @@ export function ExtractorPage() {
       {res && (
         <div className="grid2">
           <div className="panel">
-            <h3 style={{ marginTop: 0 }}>Rozpoznane adresy ({res.matches.length})</h3>
+            <h3>Rozpoznane adresy ({res.matches.length})</h3>
             <table>
               <tbody>
                 {res.matches.map((m, i) => (
@@ -45,7 +45,7 @@ export function ExtractorPage() {
             </table>
           </div>
           <div className="panel">
-            <h3 style={{ marginTop: 0 }}>Odrzuceni kandydaci ({res.rejected.length})</h3>
+            <h3>Odrzuceni kandydaci ({res.rejected.length})</h3>
             {res.rejected.map((r, i) => (
               <div key={i} style={{ marginBottom: 8 }}>
                 <div className="mono">{r.candidate}</div>

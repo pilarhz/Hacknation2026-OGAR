@@ -37,7 +37,10 @@ h3 { font-size: 15px; margin: 14px 0 6px; }
 
 .container { max-width: 1280px; margin: 0 auto; padding: 20px 24px 60px; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px; }
+.panel > :is(h2, h3):first-child { margin-top: 0; }
+.panel.flush { padding: 0; }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.row.between { justify-content: space-between; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }

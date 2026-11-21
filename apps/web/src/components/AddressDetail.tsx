@@ -21,7 +21,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
   const oc = a.onchain;
   return (
     <div>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
+      <div className="row between">
         <div>
           <div className="mono" style={{ fontSize: 14 }}>
             <b>{a.chain}</b> {a.address}

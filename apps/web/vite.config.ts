@@ -8,5 +8,5 @@ export default defineConfig({
     host: '127.0.0.1',
     proxy: { '/api': 'http://127.0.0.1:8080' },
   },
-  build: { outDir: 'dist', chunkSizeWarningLimit: 1200 },
+  build: { outDir: 'dist' },
 });

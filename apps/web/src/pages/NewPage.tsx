@@ -96,7 +96,7 @@ export function NewPage({ meta }: { meta: Meta }) {
       </div>
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Scenariusze demonstracyjne</h3>
+        <h3>Scenariusze demonstracyjne</h3>
         <div className="presets">
           {PRESETS.map((p) => (
             <button key={p.title} className="preset" onClick={() => applyPreset(p)}>
@@ -112,7 +112,7 @@ export function NewPage({ meta }: { meta: Meta }) {
 
       <div className="grid2">
         <div className="panel">
-          <h3 style={{ marginTop: 0 }}>Dane wejściowe</h3>
+          <h3>Dane wejściowe</h3>
           <div className="row" style={{ marginBottom: 10 }}>
             <label className="field" style={{ flex: 2 }}>
               Nazwa analizy
@@ -151,7 +151,7 @@ export function NewPage({ meta }: { meta: Meta }) {
         </div>
 
         <div className="panel">
-          <h3 style={{ marginTop: 0 }}>Źródła i parametry</h3>
+          <h3>Źródła i parametry</h3>
           {meta.sources.map((s) => (
             <label key={s.id} className="check">
               <input type="checkbox" checked={sources.includes(s.id)} onChange={(e) => setSources(e.target.checked ? [...sources, s.id] : sources.filter((x) => x !== s.id))} disabled={!s.available} />

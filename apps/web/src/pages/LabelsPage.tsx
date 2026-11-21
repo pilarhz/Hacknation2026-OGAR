@@ -44,7 +44,7 @@ export function LabelsPage({ meta }: { meta: Meta }) {
         Adresy giełd, kontraktów, mikserów, kantorów i zbiórek nie są przypisywane osobie (Wskaźnik Pewności 0%), ale interakcje z nimi są odnotowywane jako wskaźniki (np. wyjście do fiat). Oprócz listy startowej system korzysta z etykiet zwracanych przez eksploratory (Blockscout, Tronscan) i z flagi kontraktu (bytecode ≠ 0x).
       </div>
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Dodaj etykietę analityka</h3>
+        <h3>Dodaj etykietę analityka</h3>
         <div className="row">
           <select value={form.chain} onChange={(e) => setForm({ ...form, chain: e.target.value })}>
             {['ETH', 'BTC', 'TRX', 'LTC', 'DOGE', 'SOL', 'XMR'].map((c) => <option key={c}>{c}</option>)}
@@ -61,11 +61,11 @@ export function LabelsPage({ meta }: { meta: Meta }) {
       </div>
       {data && (
         <>
-          <div className="panel" style={{ padding: 0 }}>
+          <div className="panel flush">
             <h3 style={{ margin: 14 }}>Etykiety analityków ({data.custom.length})</h3>
             {rows(data.custom, true)}
           </div>
-          <div className="panel" style={{ padding: 0 }}>
+          <div className="panel flush">
             <h3 style={{ margin: 14 }}>Lista startowa ({data.seed.length})</h3>
             {rows(data.seed, false)}
           </div>

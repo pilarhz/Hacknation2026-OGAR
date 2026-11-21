@@ -6,7 +6,7 @@ function Login({ onDone }: { onDone: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   return (
     <div className="panel" style={{ maxWidth: 420, margin: '40px auto' }}>
-      <h2 style={{ marginTop: 0 }}>Logowanie</h2>
+      <h2>Logowanie</h2>
       <div className="small muted" style={{ marginBottom: 10 }}>Serwer wymaga tokenu dostępu (API_TOKEN). Token zostanie zapisany w ciasteczku HttpOnly tej przeglądarki.</div>
       <form
         onSubmit={async (e) => {

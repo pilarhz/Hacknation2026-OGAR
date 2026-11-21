@@ -27,7 +27,7 @@ export function ListPage() {
           Brak analiz. <a href="#/new">Utwórz pierwszą analizę</a> – np. ze scenariusza testowego na danych syntetycznych.
         </div>
       ) : (
-        <div className="panel" style={{ padding: 0 }}>
+        <div className="panel flush">
           <table>
             <thead>
               <tr>
