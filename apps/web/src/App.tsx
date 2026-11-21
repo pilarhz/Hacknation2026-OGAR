@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type InvestigationListItem, type Meta } from './api.ts';
-import { useTheme, type Theme } from './theme.ts';
+import { useTheme } from './theme.ts';
 
 function Login({ onDone }: { onDone: () => void }) {
   const [token, setToken] = useState('');
@@ -97,35 +97,28 @@ export function App() {
           <b>OGAR</b>
         </a>
         <span className="topbar-sep" aria-hidden />
-        <span className="topbar-tag">Narzędzie analityczne administracji</span>
+        <span className="topbar-tag">
+          Narzędzie analityczne
+          <br />
+          administracji
+        </span>
         <div className="topbar-right">
-          {meta && (
-            <div className="status-row">
-              <span className="status" title={`On-chain: ${meta.config.chainLive ? 'publiczne API' : 'wyłączone'}`}>
-                <span className={`dot ${meta.config.chainLive ? 'on' : ''}`} />
-                on-chain
-              </span>
-              <span className="status" title={`AI: ${meta.config.ai === 'none' ? 'wyłączone' : meta.config.aiModel}`}>
-                <span className={`dot ${meta.config.ai === 'none' ? '' : 'on'}`} />
-                AI
-              </span>
-            </div>
-          )}
-          <a href="#/new" className={`btn cta ${isActive('/new') ? 'active' : ''}`} aria-current={isActive('/new') ? 'page' : undefined}>
-            Nowa analiza
-          </a>
-          <div className="seg icon-seg" role="radiogroup" aria-label="Motyw interfejsu">
-            {(
-              [
-                ['light', 'Motyw jasny', 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'],
-                ['dark', 'Motyw ciemny', 'M21 13A9 9 0 1111 3a7 7 0 0010 10z'],
-              ] as [Theme, string, string][]
-            ).map(([v, l, d]) => (
-              <button key={v} role="radio" aria-checked={theme === v} aria-label={l} title={l} className={theme === v ? 'active' : ''} onClick={() => setTheme(v)}>
-                <Icon d={d} />
-              </button>
-            ))}
-          </div>
+          {/* przełącznik motywu: suwak słońce / księżyc */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={theme === 'dark'}
+            aria-label="Motyw ciemny"
+            title={theme === 'dark' ? 'Przełącz na motyw jasny' : 'Przełącz na motyw ciemny'}
+            className={`theme-switch ${theme}`}
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          >
+            <span className="ts-icon ts-sun"><Icon d={SUN} /></span>
+            <span className="ts-icon ts-moon"><Icon d={MOON} /></span>
+            <span className="ts-knob" aria-hidden>
+              <Icon d={theme === 'dark' ? MOON : SUN} />
+            </span>
+          </button>
         </div>
       </header>
       <div className="workspace">
@@ -137,9 +130,23 @@ export function App() {
             {link('/method', 'Metodyka', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 17v.01M12 14a2.5 2.5 0 10-2.5-2.5" />)}
           </nav>
           {meta && <RecentCases current={parts[0] === 'inv' ? parts[1] : undefined} />}
-          <nav className="nav side-bottom" aria-label="Informacje">
-            {link('/about', 'O programie', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 11v5M12 8v.01" />)}
-          </nav>
+          <div className="side-bottom">
+            {meta && (
+              <div className="side-status">
+                <span className="status">
+                  <span className={`dot ${meta.config.ai === 'none' ? '' : 'on'}`} />
+                  AI: {meta.config.ai === 'none' ? 'wyłączone' : meta.config.aiModel}
+                </span>
+                <span className="status">
+                  <span className={`dot ${meta.config.chainLive ? 'on' : ''}`} />
+                  on-chain: {meta.config.chainLive ? 'publiczne API' : 'wyłączone'}
+                </span>
+              </div>
+            )}
+            <nav className="nav side-about" aria-label="Informacje">
+              {link('/about', 'O programie', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 11v5M12 8v.01" />)}
+            </nav>
+          </div>
         </aside>
         <main className="main">
           <div className="container">{page}</div>
@@ -172,6 +179,9 @@ function RecentCases({ current }: { current?: string }) {
     </div>
   );
 }
+
+const SUN = 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4';
+const MOON = 'M21 13A9 9 0 1111 3a7 7 0 0010 10z';
 
 function Icon({ d }: { d: string }) {
   return (

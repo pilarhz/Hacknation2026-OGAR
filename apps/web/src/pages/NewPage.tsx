@@ -100,6 +100,13 @@ export function NewPage({ meta }: { meta: Meta }) {
             Podaj co najmniej jeden identyfikator. Narzędzie przeszuka publiczne źródła, wyodrębni adresy krypto, policzy Wskaźnik Pewności i przeanalizuje aktywność on-chain.
           </p>
         </div>
+        {/* w tym samym miejscu co „Nowa analiza" na liście analiz */}
+        <button type="button" className="cta-back" onClick={() => go('/')}>
+          Cofnij
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3" />
+          </svg>
+        </button>
       </div>
 
       <div className="steps">
