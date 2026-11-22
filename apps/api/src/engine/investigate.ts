@@ -50,7 +50,10 @@ export interface SubjectIdentifier extends Identifier {
 }
 
 /** Wypowiedź ostrzegająca przed adresem (cytat oszustwa) – jej autor nie jest właścicielem adresu. */
-const WARNING_CONTEXT = /\b(scam\w*|oszust\w*|oszuk\w*|uwaga na|nie wysyłaj\w*|nie wpłacaj\w*|phishing\w*|fałszyw\w*|podróbk\w*|fraud\w*|ostrzega\w*|ostrzeżeni\w*|zgłoś\w*|report(ed)?|kradzie\w*|ukradzion\w*)\b/i;
+// Granice słów na \p{L} (flaga u): \b i \w w JS nie znają polskich liter, więc np. „zgłoś” albo
+// „ostrzeżenie” z \b…\w*\b nie były rozpoznawane (por. scoring/context.ts).
+export const WARNING_CONTEXT =
+  /(?<![\p{L}\p{N}])(?:scam\p{L}*|oszust\p{L}*|oszuk\p{L}*|uwaga na|nie wysyłaj\p{L}*|nie wpłacaj\p{L}*|phishing\p{L}*|fałszyw\p{L}*|podróbk\p{L}*|fraud\p{L}*|ostrzega\p{L}*|ostrzeżeni\p{L}*|zgłoś\p{L}*|zglos\p{L}*|report(?:ed)?|kradzie\p{L}*|ukradzion\p{L}*)(?![\p{L}\p{N}])/iu;
 
 export interface DocRecord {
   id: string;
@@ -186,6 +189,18 @@ export function siteOf(url: string, archiveOf?: string): string {
   }
 }
 
+/** Ile zapytań on-chain naraz (różne sieci = różne eksploratory). */
+const CHAIN_CONCURRENCY = 4;
+
+/** Uruchamia fn dla elementów z co najwyżej `limit` zadaniami naraz. */
+async function mapPool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) await fn(items[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
 const idKey = (i: Identifier) => `${i.kind}:${i.value.toLowerCase().replace(/\/$/, '')}`;
 
 type RunOutput = { result: RunResult; storedDocs: StoredDocument[] };
@@ -251,22 +266,34 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
   const skippedUrls: RunResult['skippedUrls'] = [];
   const addressPublishers = new Set<string>();
   let docCounter = 0;
+  let limitNoted = false;
 
   while (queue.length && raw.length < options.maxDocuments) {
     const ident = queue.shift()!;
     const applicable = sources.filter((s) => s.accepts.includes(ident.kind));
-    for (const src of applicable) {
-      onProgress?.(`${src.label}: ${IDENTIFIER_LABELS[ident.kind]} "${ident.value}"`);
-      let docs: SourceDocument[] = [];
-      try {
-        docs = await src.search(ident, { log, notes, origin: ident.origin, foundIn: ident.via?.url, skipped: skippedUrls });
-      } catch (e) {
-        notes.push(`Źródło ${src.label} – błąd dla "${ident.value}": ${e instanceof Error ? e.message : String(e)}`);
-        continue;
-      }
+    onProgress?.(`${applicable.map((s) => s.label).join(', ')}: ${IDENTIFIER_LABELS[ident.kind]} "${ident.value}"`);
+    // Źródła dla jednego identyfikatora odpytujemy równolegle (różne hosty; limit tempa per host
+    // pilnuje fetcher), a wyniki przetwarzamy w stałej kolejności źródeł – numeracja dokumentów,
+    // notatki i wynik są takie same jak przy odpytywaniu po kolei.
+    const settled = await Promise.all(
+      applicable.map(async (src) => {
+        const own = { notes: [] as string[], skipped: [] as RunResult['skippedUrls'] };
+        try {
+          const docs = await src.search(ident, { log, notes: own.notes, origin: ident.origin, foundIn: ident.via?.url, skipped: own.skipped });
+          return { src, docs, ...own };
+        } catch (e) {
+          own.notes.push(`Źródło ${src.label} – błąd dla "${ident.value}": ${e instanceof Error ? e.message : String(e)}`);
+          return { src, docs: [] as SourceDocument[], ...own };
+        }
+      }),
+    );
+    for (const { src, docs, notes: srcNotes, skipped } of settled) {
+      notes.push(...srcNotes);
+      skippedUrls.push(...skipped);
       for (const doc of docs) {
         if (raw.length >= options.maxDocuments) {
-          notes.push(`Osiągnięto limit ${options.maxDocuments} dokumentów – część wyników pominięto.`);
+          if (!limitNoted) notes.push(`Osiągnięto limit ${options.maxDocuments} dokumentów – część wyników pominięto.`);
+          limitNoted = true;
           break;
         }
         if (urlSeen.has(doc.url)) continue;
@@ -462,16 +489,25 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
   // ---------- 4. Dane on-chain ----------
   const results: AddressResult[] = [];
   const ordered = [...groups.values()].sort((a, b) => Number(b.evidence.some((e) => e.attribution === 'subject')) - Number(a.evidence.some((e) => e.attribution === 'subject')));
-  let lookups = 0;
-  for (const g of ordered) {
-    const label = lookupLabel(g.match.chain, g.match.address);
-    let onchain: ChainSummary | null = null;
+  // Które adresy odpytać (kolejność i limit jak dotąd), potem odpytanie z ograniczoną współbieżnością:
+  // różne sieci idą do różnych eksploratorów, a limit tempa per host i tak pilnuje fetcher.
+  const labels = ordered.map((g) => lookupLabel(g.match.chain, g.match.address));
+  const toLookup: number[] = [];
+  ordered.forEach((g, i) => {
+    const label = labels[i];
     const knownExcluded = label && EXCLUDED_CATEGORIES.includes(label.category) && label.origin === 'seed-list';
-    if (options.chainLookup && !knownExcluded && lookups < options.maxChainLookups) {
-      onProgress?.(`On-chain: ${g.match.chain} ${g.match.address}`);
-      lookups++;
-      onchain = await getChainSummary(g.match.chain, g.match.address, log);
-    }
+    if (options.chainLookup && !knownExcluded && toLookup.length < options.maxChainLookups) toLookup.push(i);
+  });
+  const summaries = new Map<number, ChainSummary>();
+  let done = 0;
+  await mapPool(toLookup, CHAIN_CONCURRENCY, async (i) => {
+    const g = ordered[i];
+    summaries.set(i, await getChainSummary(g.match.chain, g.match.address, log));
+    onProgress?.(`On-chain (${++done}/${toLookup.length}): ${g.match.chain} ${g.match.address}`);
+  });
+  for (const [i, g] of ordered.entries()) {
+    const label = labels[i];
+    const onchain = summaries.get(i) ?? null;
     results.push({
       key: g.match.key,
       chain: g.match.chain,
@@ -493,7 +529,10 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
   for (const r of results) {
     if (r.onchain) r.indicators = computeIndicators(r.onchain, { linkedKeys: new Map([...attributedKeys].filter(([k]) => k !== r.key)), stableThreshold: options.stableThreshold, highActivityTx: 5000 });
   }
-  const strong = new Set(results.filter((r) => !r.score.excluded && r.score.score >= 60).map((r) => r.key));
+  // „Silne” adresy (≥ 60%) do R7 liczymy już z karami za wskaźniki (np. R8 – adres usługi),
+  // ale bez samego R7 – inaczej adres, który R8 spycha poniżej progu, nadal podbijałby sąsiadów.
+  const provisional = new Map(results.map((r) => [r.key, scoreAddress({ evidence: r.evidence, label: r.label, isContract: r.onchain?.isContract ?? null, indicators: r.indicators, linkedToStrongAddress: false })]));
+  const strong = new Set(results.filter((r) => { const s = provisional.get(r.key)!; return !s.excluded && s.score >= 60; }).map((r) => r.key));
   for (const r of results) {
     const linkedToStrong = !!r.onchain?.txs.some((t) => t.counterparty && strong.has(addressKey(r.chain, t.counterparty)));
     r.score = scoreAddress({ evidence: r.evidence, label: r.label, isContract: r.onchain?.isContract ?? null, indicators: r.indicators, linkedToStrongAddress: linkedToStrong });

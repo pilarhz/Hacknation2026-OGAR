@@ -26,6 +26,9 @@
     { "chain": "BTC", "address": "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo", "name": "Binance (cold wallet)", "category": "CEX" },
     { "chain": "BTC", "address": "bc1qm34lsc65zpw79lxes69zkqmk6ee3ewf0j77s3h", "name": "Binance", "category": "CEX" },
     { "chain": "BTC", "address": "bc1qgdjqv0av3q56jvd82tkdjpy7gdp9ut8tlqmgrpmv24sq90ecnvqqjwvw97", "name": "Bitfinex (cold wallet)", "category": "CEX" },
+    { "chain": "BTC", "address": "3LYJfcfHPXYJreMsASk2jkn69LWEYKzexb", "name": "Binance (cold wallet; adres potwierdzony przez Binance w 2019 r.)", "category": "CEX" },
+    { "chain": "BTC", "address": "1NDyJtNTjmwk5xPNhjgAMu4HDHigtobu1s", "name": "Binance (hot wallet; klaster Binance.com wg WalletExplorer)", "category": "CEX" },
+    { "chain": "BTC", "address": "bc1ql49ydapnjafl5t2cp9zqpjwe6pdgmxy98859v2", "name": "Robinhood (cold wallet, portfel powierniczy; własność potwierdzona przez Robinhood)", "category": "CEX" },
     { "chain": "BTC", "address": "357a3So9CbsNfBBgFYACGvxxS6tMaDoa1P", "name": "Ukraine Government – zbiórka darowizn", "category": "CHARITY" },
     { "chain": "TRX", "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", "name": "Tether USD (USDT TRC-20) – kontrakt", "category": "STABLECOIN" },
 

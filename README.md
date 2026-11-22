@@ -40,7 +40,7 @@ Otwórz **http://127.0.0.1:5173**. W tle działają też API (:8080), wbudowany 
 3. Kliknij adres, żeby zobaczyć cytat ze źródła i wyliczenie wyniku reguła po regule. Kolejne zakładki to Mapa powiązań, Przepływ środków, Źródła i tożsamość oraz Rejestr zapytań.
 4. **Raport OSINT ↗** otwiera raport do druku lub PDF.
 
-**Testy:** `npm test` uruchamia 41 testów: sumy kontrolne adresów, reguły punktacji, scenariusze 1–4, parsery Telegrama i Bitcointalk oraz bazę danych.
+**Testy:** `npm test` uruchamia 52 testy: sumy kontrolne adresów, reguły punktacji, scenariusze 1–4, parsery Telegrama i Bitcointalk, bazę danych oraz białą listę hostów przy przekierowaniach.
 
 Docker, wersję produkcyjną i własny serwer PostgreSQL opisuje [docs/TECHNICZNE.md](docs/TECHNICZNE.md).
 
@@ -237,11 +237,13 @@ Limity i zabezpieczenia:
 - reguły punktacji są w dwóch plikach.
 
 **Bezpieczeństwo:**
-- **Biała lista hostów:** jedyne wyjście do sieci prowadzi przez [`fetcher.ts`](apps/api/src/http/fetcher.ts), a przekierowania poza listę są blokowane.
+- **Biała lista hostów:** jedyne wyjście do sieci prowadzi przez [`fetcher.ts`](apps/api/src/http/fetcher.ts), a przekierowania są obsługiwane ręcznie: host docelowy każdego przekierowania jest sprawdzany na liście, zanim zostanie do niego wysłane zapytanie (maks. 5 przekierowań, odpowiedź czytana z limitem rozmiaru).
 - **Zatwierdzanie hostów:** nieznane hosty zatwierdza analityk, zgoda dotyczy jednej sprawy i trafia do audytu.
 - **Audyt:** rejestr zapytań w każdym przebiegu i dziennik zdarzeń.
 - **API:** nasłuch tylko na `127.0.0.1`, walidacja wejścia schematami JSON, CORS ograniczony do localhost.
 - **Token:** opcjonalny `API_TOKEN` w ciasteczku `HttpOnly`.
+- **Nagłówki:** `nosniff`, `no-referrer`, zakaz osadzania w ramce; raport OSINT (zawiera treści z internetu) ma ścisłe CSP bez zewnętrznych zasobów i skryptów poza przyciskiem „Drukuj”.
+- **Restart serwera:** przebiegi przerwane w trakcie są przy starcie oznaczane jako błąd (nie wiszą jako „trwające”).
 
 **Docelowo w KAS:**
 - serwer PostgreSQL w infrastrukturze KAS,
@@ -269,7 +271,7 @@ Limity i zabezpieczenia:
 | Źródło, URL, data pobrania, metadane do odtworzenia | zakładka **Źródła**, pełne SHA-256, rejestr zapytań, dziennik audytu (także unieważnień i poprawek parametrów) |
 | Raport: fakty / obliczenia / wnioski, chronologia przepływu środków | **Raport OSINT** + **mapa powiązań** (graf: wejście → pivot → źródła → adresy → usługi) |
 | Dalsza rozbudowa | interfejs źródeł, wspólny kod EVM, [TECHNICZNE.md](docs/TECHNICZNE.md#rozbudowa) |
-| Scenariusze na danych syntetycznych | piaskownica (5 scenariuszy) + 41 testów automatycznych |
+| Scenariusze na danych syntetycznych | piaskownica (5 scenariuszy) + 52 testy automatyczne |
 | README: opis, założenia, instalacja, przykłady | ten plik: [Uruchomienie](#uruchomienie), [Zrzuty ekranu](#zrzuty-ekranu), [film](https://youtu.be/cw-VEzpwTSo) |
 | Node.js, React, PostgreSQL, open source, monorepo | tak |
 | Łatwa wymiana modelu AI, uruchamianie lokalne | API zgodne z OpenAI, Ollama |
