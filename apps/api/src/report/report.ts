@@ -4,7 +4,7 @@ import { CATEGORY_LABELS } from '../chain/types.ts';
 import { IDENTIFIER_LABELS } from '../extract/identifiers.ts';
 import { CONTEXT_INFO } from '../scoring/context.ts';
 import { BANDS, SCORING_PARAMS } from '../scoring/confidence.ts';
-import type { Investigation, RunRow } from '../engine/store.ts';
+import { INVALID_REASONS, type Investigation, type RunRow } from '../engine/store.ts';
 import type { RunResult } from '../engine/investigate.ts';
 
 const esc = (v: unknown) =>
@@ -81,6 +81,7 @@ table{border-collapse:collapse;width:100%;margin:6px 0 10px;font-size:12px}td,th
 <div class="noprint" style="text-align:right"><button onclick="window.print()">Drukuj / zapisz PDF</button></div>
 <h1>Raport OSINT – powiązania śladów cyfrowych z adresami kryptowalutowymi</h1>
 <div class="muted">OGAR v${esc(r.engineVersion)} · analiza „${esc(inv.name)}”${inv.caseRef ? ` · sygnatura ${esc(inv.caseRef)}` : ''} · przebieg #${run.seq} (${run.trigger === 'schedule' ? 'cykliczny' : 'ręczny'}) · ${dt(r.startedAt)} – ${dt(r.finishedAt)}</div>
+${run.invalidated ? `<div class="box warn" style="background:#fee2e2;border-left-color:#b3261e"><b>PRZEBIEG UNIEWAŻNIONY</b> ${dt(run.invalidated.at)} – ${esc(INVALID_REASONS[run.invalidated.reason] ?? run.invalidated.reason)}${run.invalidated.note ? `: ${esc(run.invalidated.note)}` : ''}. Wyniki tego przebiegu nie powinny być podstawą ustaleń.</div>` : ''}
 ${synthetic ? '<div class="box warn"><b>Uwaga:</b> raport zawiera dane z piaskownicy testowej (fikcyjne osoby i transakcje oznaczone jako syntetyczne).</div>' : ''}
 <div class="box"><b>Jak czytać raport.</b> Sekcja 3 zawiera <b>fakty źródłowe</b> – to, co zostało opublikowane w Internecie, z adresem URL i czasem pobrania. Sekcja 4 to <b>wyniki obliczeń</b> – Wskaźnik Pewności liczony według jawnych reguł oraz dane z blockchaina. Sekcja 6 to <b>wnioski wymagające dalszej weryfikacji</b> – nie są ustaleniami faktycznymi.</div>
 

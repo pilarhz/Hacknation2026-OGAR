@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, fmtDate, fmtNum, shortAddr, SCHEDULES, type CompareResult, type Investigation, type Meta, type RunResult, type RunRow } from '../api.ts';
+import { api, fmtDate, fmtNum, INVALID_REASON_LABELS, shortAddr, SCHEDULES, type CompareResult, type Investigation, type InvalidReason, type Meta, type RunResult, type RunRow } from '../api.ts';
 import { go } from '../App.tsx';
 import { ScoreBadge, ScoreBar, BAND_SHORT, Chain } from '../components/Score.tsx';
 import { AddressDetail } from '../components/AddressDetail.tsx';
 import { RelationMap } from '../components/RelationMap.tsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.tsx';
+import { InvalidReasonFields } from './NewPage.tsx';
 
 const LEVEL_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
@@ -23,6 +24,13 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
   const [deleting, setDeleting] = useState(false);
   const [delErr, setDelErr] = useState<string | null>(null);
   const closeConfirm = useCallback(() => setConfirmDel(false), []);
+  const [invOpen, setInvOpen] = useState(false);
+  const [invReason, setInvReason] = useState<InvalidReason>('wrong-identifier');
+  const [invNote, setInvNote] = useState('');
+  const [invBusy, setInvBusy] = useState(false);
+  const [invErr, setInvErr] = useState<string | null>(null);
+  const closeInvalidate = useCallback(() => setInvOpen(false), []);
+  const [actionErr, setActionErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -30,7 +38,7 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
       setInv(r.investigation);
       setRuns(r.runs);
       setRunId((cur) => {
-        const latestDone = r.runs.find((x) => x.status === 'done');
+        const latestDone = r.runs.find((x) => x.status === 'done' && !x.invalidated) ?? r.runs.find((x) => x.status === 'done');
         if (!cur) return latestDone?.id ?? r.runs[0]?.id ?? null;
         // automatycznie przełącz na nowy przebieg, gdy poprzedni wybrany był najnowszym
         const curIdx = r.runs.findIndex((x) => x.id === cur);
@@ -76,9 +84,19 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
     try {
       const r = await api.rerun(inv.id);
       setRunId(r.runId);
+      setActionErr(null);
       load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      setActionErr(`Nie udało się uruchomić analizy: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+  const revalidate = async (r: RunRow) => {
+    try {
+      await api.revalidateRun(r.id);
+      setActionErr(null);
+      load();
+    } catch (e) {
+      setActionErr(`Nie udało się cofnąć unieważnienia: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -90,7 +108,6 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
           <a href="#/" className="crumb">
             ← Wszystkie analizy
           </a>
-          <div className="eyebrow">{inv.caseRef ? <>Sprawa <b>{inv.caseRef}</b></> : 'Analiza OSINT'}</div>
           <h1>{inv.name}</h1>
           <div className="row small" style={{ gap: 6 }}>
             <span className="muted">Dane wejściowe:</span>
@@ -120,6 +137,21 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
                   <hr />
                 </>
               )}
+              <a href={`#/inv/${inv.id}/edit`}>Popraw parametry i uruchom ponownie…</a>
+              {currentRun && currentRun.status !== 'running' && !currentRun.invalidated && (
+                <button
+                  onClick={(e) => {
+                    e.currentTarget.closest('details')?.removeAttribute('open');
+                    setInvReason('wrong-identifier');
+                    setInvNote('');
+                    setInvErr(null);
+                    setInvOpen(true);
+                  }}
+                >
+                  Oznacz przebieg #{currentRun.seq} jako błędny…
+                </button>
+              )}
+              <hr />
               <button
                 className="danger"
                 onClick={(e) => {
@@ -144,6 +176,7 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
                 #{r.seq} · {fmtDate(r.startedAt).slice(0, 17)}
                 {r.trigger === 'schedule' ? ' · cykliczny' : ''}
                 {r.status === 'running' ? ' · trwa…' : r.status === 'error' ? ' · błąd' : ''}
+                {r.invalidated ? ' · UNIEWAŻNIONY' : ''}
                 {r.seq === latestSeq ? ' (najnowszy)' : ''}
               </option>
             ))}
@@ -179,6 +212,19 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
         </div>
       )}
       {currentRun?.status === 'error' && <div className="callout red">Przebieg zakończony błędem: {currentRun.error}</div>}
+      {actionErr && <div className="callout red">{actionErr}</div>}
+      {currentRun?.invalidated && (
+        <div className="callout red run-invalid" role="status">
+          <div>
+            <b>Przebieg #{currentRun.seq} unieważniony</b> · {INVALID_REASON_LABELS[currentRun.invalidated.reason] ?? currentRun.invalidated.reason}
+            {currentRun.invalidated.note ? <>: {currentRun.invalidated.note}</> : null}
+            <div className="small">
+              Oznaczony {fmtDate(currentRun.invalidated.at)}. Wyniki poniżej zostają do wglądu, ale nie liczą się jako aktualny wynik sprawy i są pomijane w porównaniach.
+            </div>
+          </div>
+          <button className="sm" onClick={() => revalidate(currentRun)}>Cofnij unieważnienie</button>
+        </div>
+      )}
 
       {result && (
         <>
@@ -227,7 +273,7 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
           )}
           {tab === 'timeline' && <Timeline r={result} meta={meta} />}
           {tab === 'sources' && <Sources r={result} openDoc={openDoc} />}
-          {tab === 'compare' && <Compare runs={runs.filter((r) => r.status === 'done')} current={runId!} />}
+          {tab === 'compare' && <Compare runs={runs.filter((r) => r.status === 'done' && (!r.invalidated || r.id === runId))} current={runId!} />}
           {tab === 'log' && <Log r={result} />}
         </>
       )}
@@ -249,6 +295,42 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
             <pre>{doc.content}</pre>
           </div>
         </div>
+      )}
+
+      {invOpen && currentRun && (
+        <ConfirmDialog
+          title={`Oznaczyć przebieg #${currentRun.seq} jako błędny?`}
+          confirmLabel="Oznacz jako błędny"
+          busyLabel="Zapisywanie…"
+          busy={invBusy}
+          error={invErr}
+          onCancel={closeInvalidate}
+          onConfirm={async () => {
+            if (invReason === 'other' && !invNote.trim()) {
+              setInvErr('Przy powodzie „Inny powód” opisz, co było nie tak.');
+              return;
+            }
+            setInvBusy(true);
+            setInvErr(null);
+            try {
+              await api.invalidateRun(currentRun.id, invReason, invNote.trim() || undefined);
+              setInvOpen(false);
+              load();
+            } catch (e) {
+              setInvErr(`Nie udało się zapisać: ${e instanceof Error ? e.message : String(e)}`);
+            } finally {
+              setInvBusy(false);
+            }
+          }}
+        >
+          <p>
+            Przebieg <b>nie zostanie usunięty</b>: zostaje w historii sprawy i w dzienniku audytu. Przestanie liczyć się jako aktualny wynik, a porównania w czasie będą go pomijać. Oznaczenie można cofnąć.
+          </p>
+          <InvalidReasonFields reason={invReason} setReason={setInvReason} note={invNote} setNote={setInvNote} />
+          <p className="small muted" style={{ marginTop: 10 }}>
+            Jeśli błąd wynikał z parametrów (np. literówka w identyfikatorze), użyj „Popraw parametry i uruchom ponownie”.
+          </p>
+        </ConfirmDialog>
       )}
 
       {confirmDel && (
@@ -597,7 +679,7 @@ function Compare({ runs, current }: { runs: RunRow[]; current: string }) {
     }
     api.compare(a, b).then(setRes).catch((e) => setErr(String(e.message ?? e)));
   }, [a, b]);
-  const opts = useMemo(() => runs.map((r) => <option key={r.id} value={r.id}>#{r.seq} · {fmtDate(r.startedAt)}</option>), [runs]);
+  const opts = useMemo(() => runs.map((r) => <option key={r.id} value={r.id}>#{r.seq} · {fmtDate(r.startedAt)}{r.invalidated ? ' · UNIEWAŻNIONY' : ''}</option>), [runs]);
   if (runs.length < 2) return <div className="panel empty">Do porównania potrzebne są co najmniej dwa zakończone przebiegi. Uruchom analizę ponownie lub ustaw analizę cykliczną.</div>;
   const Empty = () => <span className="muted small">brak</span>;
   return (

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { api, SCHEDULES, type Meta } from '../api.ts';
+import { useEffect, useState } from 'react';
+import { api, INVALID_REASON_LABELS, SCHEDULES, type Investigation, type InvalidReason, type Meta, type RunRow } from '../api.ts';
 import { go } from '../App.tsx';
 
 interface Seed {
@@ -46,15 +46,22 @@ const PRESETS: { title: string; desc: string; name: string; seeds: Seed[]; sourc
   },
 ];
 
-export function NewPage({ meta }: { meta: Meta }) {
-  const [name, setName] = useState('');
-  const [caseRef, setCaseRef] = useState('');
-  const [seeds, setSeeds] = useState<Seed[]>([{ kind: 'nick', value: '' }]);
-  const [sources, setSources] = useState<string[]>(meta.defaults.sources.filter((s) => s !== 'sandbox'));
-  const [maxDepth, setMaxDepth] = useState(meta.defaults.maxDepth);
-  const [maxDocuments, setMaxDocuments] = useState(meta.defaults.maxDocuments);
-  const [chainLookup, setChainLookup] = useState(true);
-  const [useAi, setUseAi] = useState(false);
+// Ten sam formularz służy do poprawienia parametrów istniejącej analizy (edit): wtedy zapisuje zmiany,
+// uruchamia nowy przebieg i – jeśli analityk tak zdecyduje – unieważnia poprzedni, błędny przebieg.
+export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigation; lastRun?: RunRow } }) {
+  const inv = edit?.inv;
+  const [name, setName] = useState(inv?.name ?? '');
+  const [caseRef, setCaseRef] = useState(inv?.caseRef ?? '');
+  const [seeds, setSeeds] = useState<Seed[]>(inv ? inv.seeds.map((x) => ({ kind: x.kind, value: x.value })) : [{ kind: 'nick', value: '' }]);
+  const [sources, setSources] = useState<string[]>(inv?.options.sources ?? meta.defaults.sources.filter((s) => s !== 'sandbox'));
+  const [maxDepth, setMaxDepth] = useState(inv?.options.maxDepth ?? meta.defaults.maxDepth);
+  const [maxDocuments, setMaxDocuments] = useState(inv?.options.maxDocuments ?? meta.defaults.maxDocuments);
+  const [chainLookup, setChainLookup] = useState(inv?.options.chainLookup ?? true);
+  const [useAi, setUseAi] = useState(inv?.options.useAi ?? false);
+  const lastRun = edit?.lastRun && edit.lastRun.status !== 'running' && !edit.lastRun.invalidated ? edit.lastRun : undefined;
+  const [invalidateLast, setInvalidateLast] = useState(!!lastRun);
+  const [reason, setReason] = useState<InvalidReason>('wrong-identifier');
+  const [note, setNote] = useState('');
   const [schedule, setSchedule] = useState<number>(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -69,12 +76,24 @@ export function NewPage({ meta }: { meta: Meta }) {
   const mixed = sources.includes('sandbox') && sources.some((s) => !meta.sources.find((x) => x.id === s)?.synthetic && s !== 'web');
   const nickOnly = seeds.some((s) => s.kind === 'nick' && s.value.trim()) && !seeds.some((s) => ['social', 'email', 'url', 'telegram', 'phone'].includes(s.kind) && s.value.trim());
   const hasSeed = seeds.some((s) => s.value.trim());
-  const valid = name.trim() && hasSeed && sources.length;
+  const valid = name.trim() && hasSeed && sources.length && !(lastRun && invalidateLast && reason === 'other' && !note.trim());
 
   const submit = async () => {
     setBusy(true);
     setErr(null);
     try {
+      if (inv) {
+        await api.update(inv.id, {
+          name: name.trim(),
+          caseRef: caseRef.trim() || null,
+          seeds: seeds.filter((s) => s.value.trim()),
+          options: { sources, maxDepth, maxDocuments, chainLookup, useAi },
+          rerun: true,
+          ...(lastRun && invalidateLast ? { invalidateRunId: lastRun.id, invalidReason: reason, invalidNote: note.trim() || undefined } : {}),
+        });
+        go(`/inv/${inv.id}`);
+        return;
+      }
       const r = await api.create({
         name: name.trim(),
         caseRef: caseRef.trim() || undefined,
@@ -95,13 +114,15 @@ export function NewPage({ meta }: { meta: Meta }) {
     <>
       <div className="page-head">
         <div>
-          <h1>Nowa analiza</h1>
+          <h1>{inv ? 'Popraw parametry analizy' : 'Nowa analiza'}</h1>
           <p className="lead">
-            Podaj co najmniej jeden identyfikator. Narzędzie przeszuka publiczne źródła, wyodrębni adresy krypto, policzy Wskaźnik Pewności i przeanalizuje aktywność on-chain.
+            {inv
+              ? 'Popraw identyfikatory, źródła lub ustawienia. Po zapisaniu uruchomi się nowy przebieg. Dotychczasowe przebiegi zostają w historii sprawy.'
+              : 'Podaj co najmniej jeden identyfikator. Narzędzie przeszuka publiczne źródła, wyodrębni adresy krypto, policzy Wskaźnik Pewności i przeanalizuje aktywność on-chain.'}
           </p>
         </div>
         {/* w tym samym miejscu co „Nowa analiza" na liście analiz */}
-        <button type="button" className="cta-back" onClick={() => go('/')}>
+        <button type="button" className="cta-back" onClick={() => go(inv ? `/inv/${inv.id}` : '/')}>
           Cofnij
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3" />
@@ -115,7 +136,7 @@ export function NewPage({ meta }: { meta: Meta }) {
             <span className="step-num">1</span>
             <div>
               <h3>Kogo badamy?</h3>
-              <p>Wpisz dane albo kliknij gotowy scenariusz demonstracyjny poniżej.</p>
+              <p>{inv ? 'Sprawdź i popraw dane wejściowe analizy.' : 'Wpisz dane albo kliknij gotowy scenariusz demonstracyjny poniżej.'}</p>
             </div>
           </div>
           <div className="row" style={{ marginBottom: 14, alignItems: 'flex-start' }}>
@@ -160,6 +181,8 @@ export function NewPage({ meta }: { meta: Meta }) {
             </div>
           )}
 
+          {!inv && (
+            <>
           <div className="section-title" style={{ marginTop: 24 }}>
             Scenariusze demonstracyjne
           </div>
@@ -174,6 +197,8 @@ export function NewPage({ meta }: { meta: Meta }) {
           <div className="small muted" style={{ marginTop: 8 }}>
             Scenariusze 1–4 działają na piaskownicy z fikcyjnymi danymi ({meta.config.sandboxUrl}) – bez przetwarzania danych prawdziwych osób.
           </div>
+            </>
+          )}
         </section>
 
         <section className="panel">
@@ -226,6 +251,7 @@ export function NewPage({ meta }: { meta: Meta }) {
                 ))}
               </select>
             </label>
+            {!inv && (
             <label className="field">
               Analiza cykliczna
               <select value={schedule} onChange={(e) => setSchedule(Number(e.target.value))}>
@@ -236,7 +262,9 @@ export function NewPage({ meta }: { meta: Meta }) {
                 ))}
               </select>
             </label>
+            )}
           </div>
+          {inv && <div className="small muted" style={{ marginTop: 8 }}>Harmonogram analizy cyklicznej zmienisz na stronie analizy (pole „Analiza cykliczna”).</div>}
           <label className="check" style={{ marginTop: 10 }}>
             <input type="checkbox" checked={chainLookup} onChange={(e) => setChainLookup(e.target.checked)} />
             <div>
@@ -259,10 +287,27 @@ export function NewPage({ meta }: { meta: Meta }) {
           </details>
         </section>
 
+        {inv && lastRun && (
+          <section className="panel">
+            <div className="step-head">
+              <span className="step-num">4</span>
+              <div>
+                <h3>Co z poprzednim przebiegiem?</h3>
+                <p>Przebieg #{lastRun.seq} zostanie w historii sprawy. Jeśli był błędny, oznacz go, żeby nie liczył się jako aktualny wynik.</p>
+              </div>
+            </div>
+            <label className="check">
+              <input type="checkbox" checked={invalidateLast} onChange={(e) => setInvalidateLast(e.target.checked)} />
+              <div>Oznacz przebieg #{lastRun.seq} jako błędny</div>
+            </label>
+            {invalidateLast && <InvalidReasonFields reason={reason} setReason={setReason} note={note} setNote={setNote} />}
+          </section>
+        )}
+
         {err && <div className="callout red">{err}</div>}
         <div className="submit-bar">
           <button className="primary lg" disabled={!valid || busy} onClick={submit}>
-            {busy ? 'Uruchamianie…' : 'Uruchom analizę →'}
+            {busy ? (inv ? 'Zapisywanie…' : 'Uruchamianie…') : inv ? 'Zapisz i uruchom ponownie →' : 'Uruchom analizę →'}
           </button>
           <span className="small muted">
             {missing.length ? `Uzupełnij: ${missing.join(', ')}.` : 'Korzystamy wyłącznie z publicznych źródeł (OSINT) – bez logowania i obchodzenia zabezpieczeń.'}
@@ -271,4 +316,49 @@ export function NewPage({ meta }: { meta: Meta }) {
       </div>
     </>
   );
+}
+
+/** Wybór powodu unieważnienia przebiegu (wspólny dla formularza poprawy i okna „Oznacz jako błędny”). */
+export function InvalidReasonFields({ reason, setReason, note, setNote }: { reason: InvalidReason; setReason: (r: InvalidReason) => void; note: string; setNote: (n: string) => void }) {
+  return (
+    <div className="invalid-fields">
+      <fieldset>
+        <legend>Powód</legend>
+        {(Object.keys(INVALID_REASON_LABELS) as InvalidReason[]).map((r) => (
+          <label key={r} className="check">
+            <input type="radio" name="invalid-reason" checked={reason === r} onChange={() => setReason(r)} />
+            <div>{INVALID_REASON_LABELS[r]}</div>
+          </label>
+        ))}
+      </fieldset>
+      <label className="field">
+        <span>
+          Opis {reason === 'other' ? <span className="hint">(wymagany)</span> : <span className="hint">(opcjonalnie)</span>}
+        </span>
+        <textarea rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} placeholder="np. literówka w nicku: cryptojanke zamiast cryptojanek" />
+      </label>
+    </div>
+  );
+}
+
+/** #/inv/:id/edit – formularz analizy wypełniony parametrami istniejącej sprawy. */
+export function EditInvestigationPage({ id, meta }: { id: string; meta: Meta }) {
+  const [data, setData] = useState<{ inv: Investigation; lastRun?: RunRow } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    api
+      .get(id)
+      .then((r) => setData({ inv: r.investigation, lastRun: r.runs[0] }))
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+  }, [id]);
+  if (err) return <div className="callout red">{err}</div>;
+  if (!data) return <div className="empty">Ładowanie…</div>;
+  if (data.lastRun?.status === 'running') {
+    return (
+      <div className="panel callout warn">
+        <b>Trwa przebieg tej analizy.</b> Parametry można poprawić po jego zakończeniu. <a href={`#/inv/${id}`}>Wróć do analizy</a>
+      </div>
+    );
+  }
+  return <NewPage meta={meta} edit={data} />;
 }

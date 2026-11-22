@@ -1,8 +1,16 @@
 // Klient REST API. Typy z backendu (import tylko typów – kod serwera nie trafia do bundla).
 import type { RunResult, AddressResult, InvestigationOptions } from '../../api/src/engine/investigate.ts';
-import type { Investigation, RunRow, TrashItem } from '../../api/src/engine/store.ts';
+import type { Investigation, InvalidReason, RunRow, TrashItem } from '../../api/src/engine/store.ts';
 
-export type { RunResult, AddressResult, InvestigationOptions, Investigation, RunRow, TrashItem };
+export type { RunResult, AddressResult, InvestigationOptions, Investigation, InvalidReason, RunRow, TrashItem };
+
+/** Powody unieważnienia przebiegu (te same kody co INVALID_REASONS na serwerze). */
+export const INVALID_REASON_LABELS: Record<InvalidReason, string> = {
+  'wrong-identifier': 'Błędny identyfikator',
+  'wrong-sources': 'Złe źródła lub parametry',
+  technical: 'Błąd techniczny',
+  other: 'Inny powód',
+};
 
 export interface Meta {
   sources: { id: string; label: string; description: string; accepts: string[]; hosts: string[]; synthetic: boolean; available: boolean; note: string | null }[];
@@ -60,6 +68,13 @@ export const api = {
   rerun: (id: string) => req<{ runId: string }>(`/api/investigations/${id}/runs`, { method: 'POST', body: '{}' }),
   run: (id: string) => req<{ run: RunRow; result: RunResult; investigation: Investigation }>(`/api/runs/${id}`),
   document: (runId: string, docId: string) => req<{ content: string; url: string; title: string; sha256: string; fetched_at: string }>(`/api/runs/${runId}/documents/${docId}`),
+  /** Poprawienie parametrów analizy; opcjonalnie nowy przebieg i unieważnienie poprzedniego. */
+  update: (
+    id: string,
+    body: { name: string; caseRef: string | null; seeds: { kind: string; value: string }[]; options: Partial<InvestigationOptions>; rerun?: boolean; invalidateRunId?: string; invalidReason?: InvalidReason; invalidNote?: string },
+  ) => changed(req<{ investigation: Investigation; runId: string | null }>(`/api/investigations/${id}`, { method: 'PUT', body: JSON.stringify(body) })),
+  invalidateRun: (runId: string, reason: InvalidReason, note?: string) => changed(req<{ ok: boolean }>(`/api/runs/${runId}/invalidate`, { method: 'POST', body: JSON.stringify({ reason, note }) })),
+  revalidateRun: (runId: string) => changed(req<{ ok: boolean }>(`/api/runs/${runId}/revalidate`, { method: 'POST', body: '{}' })),
   compare: (a: string, b: string) => req<CompareResult>(`/api/compare?a=${a}&b=${b}`),
   extract: (text: string) => req<ExtractResult>('/api/extract', { method: 'POST', body: JSON.stringify({ text }) }),
   labels: () => req<{ custom: LabelRow[]; seed: LabelRow[] }>('/api/labels'),

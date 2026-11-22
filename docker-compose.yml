@@ -24,6 +24,7 @@ services:
       SANDBOX_URL: http://sandbox:4100
       # AI_PROVIDER: openai-compatible
       # AI_BASE_URL: http://ollama:11434/v1
+      # AI_MODEL: qwen2.5:3b
     depends_on:
       postgres:
         condition: service_healthy

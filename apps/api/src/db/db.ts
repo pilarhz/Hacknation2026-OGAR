@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE INDEX IF NOT EXISTS documents_run ON documents(run_id);
 -- Kosz: usunięta analiza ma deleted_at; po 30 dniach jest kasowana na stałe (purgeExpiredTrash).
 ALTER TABLE investigations ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+-- Unieważnienie przebiegu: przebieg zostaje (ciągłość dowodowa), ale jest oznaczony jako błędny z powodem.
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS invalidated_at TIMESTAMPTZ;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS invalid_reason TEXT;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS invalid_note TEXT;
 CREATE INDEX IF NOT EXISTS investigations_deleted ON investigations(deleted_at);
 CREATE TABLE IF NOT EXISTS http_cache (
   url          TEXT PRIMARY KEY,

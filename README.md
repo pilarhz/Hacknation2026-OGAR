@@ -275,7 +275,15 @@ apps/
 
 Model danych (PostgreSQL, [`db/db.ts`](apps/api/src/db/db.ts)): `investigations` (sprawa; identyfikatory i parametry w `JSONB`, harmonogram, zatwierdzone hosty) → `runs` (przebieg; pełny wynik w `JSONB`, numer przebiegu unikalny w sprawie) → `documents` (treść + SHA-256 każdego pobranego dokumentu) oraz `http_cache`, `chain_cache`, `custom_labels`, `audit_log` (`BIGSERIAL`). Klucze obce z `ON DELETE CASCADE` – usunięcie sprawy usuwa jej przebiegi i dokumenty. Lista spraw liczy statystyki i najwyższy wynik bezpośrednio w bazie (`jsonb_array_elements`), bez przesyłania pełnych wyników. Harmonogram przesuwa termin atomowo (`UPDATE … RETURNING`), więc przy kilku instancjach API przebieg nie uruchomi się podwójnie.
 
-**Wymiana modelu AI** odbywa się wyłącznie przez konfigurację (`AI_BASE_URL`, `AI_MODEL`). ⚠️ Integracja AI **nie była uruchomiona** z żadnym modelem w trakcie hackathonu (kod gotowy, nieprzetestowany). Działa z każdym serwerem zgodnym z OpenAI Chat Completions: Ollama, vLLM, LM Studio, llama.cpp server. AI wyłącznie **proponuje** kategorię kontekstu dla przypadków, w których reguły dały wynik domyślny (K8). Propozycja jest pokazywana obok reguły i nie zmienia wyniku, więc rezultat pozostaje wyjaśnialny i odtwarzalny. Treść analizowana trafia do modelu jako dane w roli `user`, a instrukcja systemowa nakazuje ignorować polecenia z treści (ochrona przed prompt injection).
+**Wymiana modelu AI** odbywa się wyłącznie przez konfigurację (`AI_BASE_URL`, `AI_MODEL`). Działa z każdym serwerem zgodnym z OpenAI Chat Completions: Ollama, vLLM, LM Studio, llama.cpp server. Przetestowano z lokalną Ollamą i modelem `qwen2.5:3b` (~2 GB, odpowiedź < 1 s na zapytanie, bez GPU) na scenariuszu 1:
+
+```bash
+ollama pull qwen2.5:3b
+# .env: AI_PROVIDER=openai-compatible, AI_BASE_URL=http://127.0.0.1:11434/v1, AI_MODEL=qwen2.5:3b
+npm run dev        # pasek górny: „AI: qwen2.5:3b”; w formularzu analizy zaznacz AI
+```
+
+Na żądanie AI jest wywoływane maksymalnie 10 razy na przebieg, z limitem 20 s; każde wywołanie trafia do logu zapytań, a brak odpowiedzi nie przerywa analizy. AI wyłącznie **proponuje** kategorię kontekstu dla przypadków, w których reguły dały wynik domyślny (K8). Propozycja jest pokazywana obok reguły i nie zmienia wyniku, więc rezultat pozostaje wyjaśnialny i odtwarzalny. Treść analizowana trafia do modelu jako dane w roli `user`, a instrukcja systemowa nakazuje ignorować polecenia z treści (ochrona przed prompt injection).
 
 **Docelowo w środowisku KAS:** serwer PostgreSQL w infrastrukturze KAS (`DATABASE_URL`), lokalny model AI, SearXNG on-premise jako metawyszukiwarka, SSO przed API (`API_TOKEN` to tylko zabezpieczenie prototypu), kolejka zadań (np. BullMQ/RabbitMQ) przy wielu analitykach.
 
@@ -334,7 +342,7 @@ Kod: MIT. Zależności (wszystkie open source):
 | @noble/hashes (keccak-256) | 1.8 | MIT |
 | react, react-dom | 19.3 | MIT |
 | vite, @vitejs/plugin-react | 6.4 / 4.7 | MIT |
-| Czcionki @fontsource: Saira Stencil One, Saira (variable), Source Sans 3, IBM Plex Mono | 5.3 | OFL-1.1 |
+| Czcionki @fontsource: Saira Stencil One, IBM Plex Sans, IBM Plex Mono | 5.3 | OFL-1.1 |
 | typescript | 5.9 | Apache-2.0 |
 | pg (sterownik serwera PostgreSQL) | 8.23 | MIT |
 | @electric-sql/pglite (wbudowany PostgreSQL) | 0.5 | Apache-2.0 |
@@ -362,7 +370,7 @@ Usługi zewnętrzne (publiczne, bez kluczy; korzystanie zgodnie z ich warunkami)
 - **Na żywo działają głównie serwisy programistyczne** (GitHub, Keybase, Gravatar, Hacker News). Fora, ogłoszenia P2P i komunikatory – wymienione w zadaniu – są dziś pokryte tylko w piaskownicy. Najważniejsze brakujące źródła: **Bitcointalk** (publiczne profile z adresami BTC) i **publiczne kanały Telegram** (podgląd `t.me/s/{kanał}` działa bez logowania).
 - **Reddit** odrzuca dziś zapytania automatyczne bez OAuth (HTTP 403) – dlatego nie jest w domyślnym zestawie źródeł.
 - **Facebook, Instagram, TikTok, X, OLX** nie udostępniają wyszukiwania bez logowania; zgodnie z zasadami OSINT ich nie scrapujemy. Publiczne strony można podać jako URL.
-- **Nieprzetestowane:** dostawca AI, SearXNG, ścieżka Tronscan z kluczem (`TRONSCAN_API_KEY`).
+- **Nieprzetestowane:** SearXNG, ścieżka Tronscan z kluczem (`TRONSCAN_API_KEY`).
 - **Wykrywanie wyjścia do fiat** opiera się na etykietach – prawdziwe adresy depozytowe giełd są unikalne dla użytkownika i nieoznaczone; brakuje analizy „o jeden krok dalej” (depozyt → portfel giełdy). Brak też wyceny w PLN (kurs NBP na dzień transakcji), istotnej dla PIT-38.
 - **Portfele-kontrakty** (Safe, Argent) są wykluczane regułą E2 jak każdy kontrakt, choć mogą należeć do osoby. Adres EVM jest analizowany tylko w sieci Ethereum (BSC/Polygon – inny `BLOCKSCOUT_URL`).
 - Dane on-chain są analizowane na **próbce** (ostatnie 25–100 transakcji). Sumy wolumenu pochodzą ze statystyk eksploratora, a raport informuje o próbkowaniu. Dla BTC nie stosujemy heurystyk klastrowania (common-input) – to kierunek rozwoju.

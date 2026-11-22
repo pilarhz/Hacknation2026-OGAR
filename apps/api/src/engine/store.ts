@@ -26,11 +26,40 @@ export interface RunRow {
   startedAt: string;
   finishedAt: string | null;
   error: string | null;
+  /** Przebieg oznaczony przez analityka jako błędny (null = ważny). */
+  invalidated: { at: string; reason: InvalidReason; note: string | null } | null;
   progress?: string;
   stats?: Record<string, number>;
 }
 
 const progress = new Map<string, string>();
+
+// ---------------- Unieważnianie przebiegów ----------------
+// Przebiegu nie da się usunąć (ciągłość dowodowa, porównania w czasie, audyt). Analityk może go
+// unieważnić z powodem – wtedy nie liczy się jako najnowszy wynik i jest pomijany w porównaniach.
+export const INVALID_REASONS = {
+  'wrong-identifier': 'Błędny identyfikator',
+  'wrong-sources': 'Złe źródła lub parametry',
+  technical: 'Błąd techniczny',
+  other: 'Inny powód',
+} as const;
+export type InvalidReason = keyof typeof INVALID_REASONS;
+
+export async function invalidateRun(runId: string, reason: InvalidReason, note?: string | null): Promise<'ok' | 'not-found' | 'running'> {
+  const r = await db().one<{ status: string }>('SELECT status FROM runs WHERE id = $1', [runId]);
+  if (!r) return 'not-found';
+  if (r.status === 'running') return 'running';
+  const n = note?.trim() || null;
+  await db().query('UPDATE runs SET invalidated_at = now(), invalid_reason = $1, invalid_note = $2 WHERE id = $3', [reason, n, runId]);
+  await audit('run.invalidate', { runId, reason, note: n });
+  return 'ok';
+}
+
+export async function revalidateRun(runId: string): Promise<boolean> {
+  const rows = await db().query('UPDATE runs SET invalidated_at = NULL, invalid_reason = NULL, invalid_note = NULL WHERE id = $1 AND invalidated_at IS NOT NULL RETURNING id', [runId]);
+  if (rows.length) await audit('run.revalidate', { runId });
+  return rows.length > 0;
+}
 const nextRun = (minutes: number | null) => (minutes ? new Date(Date.now() + minutes * 60_000).toISOString() : null);
 
 function rowToInv(r: Row): Investigation {
@@ -57,6 +86,7 @@ function rowToRun(r: Row): RunRow {
     startedAt: iso(r.started_at)!,
     finishedAt: iso(r.finished_at),
     error: (r.error as string) ?? null,
+    invalidated: r.invalidated_at ? { at: iso(r.invalidated_at)!, reason: r.invalid_reason as InvalidReason, note: (r.invalid_note as string) ?? null } : null,
   };
 }
 
@@ -70,7 +100,7 @@ export async function listInvestigations() {
             (SELECT MAX((a -> 'score' ->> 'score')::int) FROM jsonb_array_elements(last.result -> 'addresses') a
               WHERE NOT (a -> 'score' ->> 'excluded')::boolean) AS top_score
      FROM investigations i
-     LEFT JOIN LATERAL (SELECT r.result FROM runs r WHERE r.investigation_id = i.id AND r.status = 'done' ORDER BY seq DESC LIMIT 1) last ON true
+     LEFT JOIN LATERAL (SELECT r.result FROM runs r WHERE r.investigation_id = i.id AND r.status = 'done' AND r.invalidated_at IS NULL ORDER BY seq DESC LIMIT 1) last ON true
      WHERE i.deleted_at IS NULL
      ORDER BY i.updated_at DESC`,
   );
@@ -100,6 +130,27 @@ export async function createInvestigation(input: { name: string; caseRef?: strin
   );
   await audit('investigation.create', { id, name: input.name, seeds: input.seeds.length });
   return (await getInvestigation(id))!;
+}
+
+/** Poprawienie parametrów analizy (nazwa, sygnatura, identyfikatory, źródła). Dotychczasowe przebiegi zostają bez zmian. */
+export async function updateInvestigation(
+  id: string,
+  input: { name: string; caseRef?: string | null; seeds: Identifier[]; options?: Partial<InvestigationOptions> },
+): Promise<Investigation | null> {
+  const inv = await getInvestigation(id);
+  if (!inv) return null;
+  // zatwierdzone hosty zostają (decyzja analityka), chyba że formularz podał nową listę
+  const options = { ...inv.options, ...input.options, approvedHosts: input.options?.approvedHosts ?? inv.options.approvedHosts };
+  await db().query('UPDATE investigations SET name = $1, case_ref = $2, seeds = $3::jsonb, options = $4::jsonb, updated_at = $5 WHERE id = $6', [
+    input.name,
+    input.caseRef?.trim() || null,
+    toJsonb(input.seeds),
+    toJsonb(options),
+    now(),
+    id,
+  ]);
+  await audit('investigation.update', { id, before: { name: inv.name, seeds: inv.seeds, options: inv.options }, after: { name: input.name, seeds: input.seeds, options } });
+  return getInvestigation(id);
 }
 
 export async function updateSchedule(id: string, minutes: number | null) {
@@ -187,7 +238,7 @@ export async function purgeExpiredTrash(): Promise<number> {
 
 export async function listRuns(investigationId: string): Promise<RunRow[]> {
   const rows = await db().query(
-    `SELECT id, investigation_id, seq, trigger, status, started_at, finished_at, error, result -> 'stats' AS stats
+    `SELECT id, investigation_id, seq, trigger, status, started_at, finished_at, error, invalidated_at, invalid_reason, invalid_note, result -> 'stats' AS stats
      FROM runs WHERE investigation_id = $1 ORDER BY seq DESC`,
     [investigationId],
   );

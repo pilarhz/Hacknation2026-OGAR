@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Meta, RunResult } from '../api.ts';
 import { BAND_SHORT } from './Score.tsx';
 
 // Mapa powiązań: graf przebiegu w kolumnach Wejście → Pivot → Źródła → Adresy → Usługi.
 // Najechanie pokazuje powiązania węzła, kliknięcie je przypina.
+// Widok: kółko myszy przybliża/oddala (wokół kursora), przytrzymanie lewego przycisku przesuwa, dwuklik w tło dopasowuje.
 
 type GNode = RunResult['graph']['nodes'][number];
 type GEdge = RunResult['graph']['edges'][number];
@@ -34,7 +35,10 @@ const EDGE_LABEL: Record<GEdge['type'], string> = {
   service: 'przepływ do usługi',
 };
 
-const ZOOMS = [0.7, 0.85, 1, 1.15, 1.3];
+const MIN_SCALE = 0.3;
+const MAX_SCALE = 2.5;
+const DRAG_THRESHOLD = 4; // px – mniejszy ruch to zwykłe kliknięcie
+const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 const ICON: Record<string, string> = {
   identifier: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0',
@@ -61,8 +65,11 @@ export function RelationMap({ r, meta, onOpenAddress }: { r: RunResult; meta: Me
   const [sel, setSel] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const [showExcluded, setShowExcluded] = useState(false);
-  const [zi, setZi] = useState(2);
-  const zoom = ZOOMS[zi];
+  const [view, setView] = useState({ s: 1, x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const viewport = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ px: number; py: number; x: number; y: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
 
   const layout = useMemo(() => {
     const visible = r.graph.nodes.filter((n) => showExcluded || !(n.type === 'address' && n.meta?.excluded));
@@ -114,6 +121,64 @@ export function RelationMap({ r, meta, onOpenAddress }: { r: RunResult; meta: Me
       height: HEAD + body + LANE_PAD,
     };
   }, [r, showExcluded]);
+
+  // dopasowanie całej mapy do widoku (start, zmiana danych, dwuklik w tło)
+  const fit = useCallback(() => {
+    const el = viewport.current;
+    if (!el) return;
+    const vw = el.clientWidth, vh = el.clientHeight;
+    const sc = clamp(Math.min((vw - 48) / layout.width, (vh - 48) / layout.height, 1), MIN_SCALE, MAX_SCALE);
+    setView({ s: sc, x: (vw - layout.width * sc) / 2, y: Math.max(24, (vh - layout.height * sc) / 2) });
+  }, [layout.width, layout.height]);
+  useEffect(() => {
+    fit();
+  }, [fit]);
+
+  // kółko myszy: zoom wokół kursora; nasłuch natywny z passive:false, żeby nie przewijać przy tym strony
+  useEffect(() => {
+    const el = viewport.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const px = e.clientX - rect.left, py = e.clientY - rect.top;
+      const factor = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015));
+      setView((v) => {
+        const ns = clamp(v.s * factor, MIN_SCALE, MAX_SCALE);
+        const k = ns / v.s;
+        return { s: ns, x: px - (px - v.x) * k, y: py - (py - v.y) * k };
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // przytrzymanie lewego przycisku: przesuwanie mapy
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    drag.current = { px: e.clientX, py: e.clientY, x: view.x, y: view.y, moved: false };
+    const move = (ev: PointerEvent) => {
+      const d = drag.current;
+      if (!d) return;
+      const dx = ev.clientX - d.px, dy = ev.clientY - d.py;
+      if (!d.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      if (!d.moved) {
+        d.moved = true;
+        setDragging(true);
+        setHover(null);
+      }
+      setView((v) => ({ ...v, x: d.x + dx, y: d.y + dy }));
+    };
+    const up = () => {
+      if (drag.current?.moved) suppressClick.current = true; // przeciągnięcie nie jest kliknięciem w węzeł/tło
+      drag.current = null;
+      setDragging(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
 
   // aktywny węzeł: najechany (podgląd) albo przypięty kliknięciem
   const focus = hover ?? sel;
@@ -172,17 +237,26 @@ export function RelationMap({ r, meta, onOpenAddress }: { r: RunResult; meta: Me
               Pokaż wykluczone ({excludedCount})
             </label>
           )}
-          <div className="map-zoom" role="group" aria-label="Powiększenie mapy">
-            <button type="button" aria-label="Pomniejsz" disabled={zi === 0} onClick={() => setZi(zi - 1)}>−</button>
-            <span className="num">{Math.round(zoom * 100)}%</span>
-            <button type="button" aria-label="Powiększ" disabled={zi === ZOOMS.length - 1} onClick={() => setZi(zi + 1)}>+</button>
-          </div>
         </div>
       </div>
 
-      <div className="map-scroll" onClick={() => setSel(null)}>
-        <div className="map-stage" style={{ width: layout.width * zoom, height: layout.height * zoom }}>
-          <div className="map-canvas" style={{ width: layout.width, height: layout.height, transform: `scale(${zoom})` }}>
+      <div
+        ref={viewport}
+        className={`map-viewport${dragging ? ' dragging' : ''}`}
+        onPointerDown={onPointerDown}
+        onClickCapture={(e) => {
+          if (suppressClick.current) {
+            suppressClick.current = false;
+            e.stopPropagation();
+            e.preventDefault();
+          }
+        }}
+        onClick={() => setSel(null)}
+        onDoubleClick={(e) => {
+          if (!(e.target as HTMLElement).closest('.mn')) fit();
+        }}
+      >
+          <div className="map-canvas" style={{ width: layout.width, height: layout.height, transform: `translate(${Math.round(view.x)}px, ${Math.round(view.y)}px) scale(${view.s})` }}>
             {/* pasy kolumn z nagłówkami */}
             {layout.used.map((ci, k) => (
               <div key={ci} className="map-lane" style={{ left: k * COL, width: W + LANE_PAD * 2, height: layout.height }}>
@@ -245,6 +319,9 @@ export function RelationMap({ r, meta, onOpenAddress }: { r: RunResult; meta: Me
               );
             })}
           </div>
+        <div className="map-hint" aria-hidden>
+          <span className="num">{Math.round(view.s * 100)}%</span>
+          <span>kółko: przybliż / oddal · przytrzymaj i przeciągnij: przesuń · dwuklik w tło: dopasuj</span>
         </div>
       </div>
 

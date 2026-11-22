@@ -22,15 +22,20 @@ import {
   getDocument,
   getInvestigation,
   getRunResult,
+  INVALID_REASONS,
+  invalidateRun,
+  type InvalidReason,
   listInvestigations,
   listRuns,
   listTrash,
   purgeTrashed,
   restoreInvestigation,
+  revalidateRun,
   startRun,
   startScheduler,
   trashInvestigation,
   TRASH_DAYS,
+  updateInvestigation,
   updateSchedule,
 } from './engine/store.ts';
 import { renderReport } from './report/report.ts';
@@ -94,6 +99,23 @@ app.get('/api/meta', async () => ({
 
 app.get('/api/investigations', async () => await listInvestigations());
 
+// Schematy wspólne dla tworzenia i poprawiania analizy.
+const SEEDS_SCHEMA = { type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', required: ['kind', 'value'], properties: { kind: { enum: KINDS }, value: { type: 'string', minLength: 1, maxLength: 500 } } } };
+const OPTIONS_SCHEMA = {
+  type: 'object',
+  properties: {
+    sources: { type: 'array', items: { type: 'string' } },
+    maxDepth: { type: 'integer', minimum: 0, maximum: 3 },
+    maxDocuments: { type: 'integer', minimum: 1, maximum: 500 },
+    chainLookup: { type: 'boolean' },
+    maxChainLookups: { type: 'integer', minimum: 0, maximum: 100 },
+    useAi: { type: 'boolean' },
+    stableThreshold: { type: 'number', minimum: 0 },
+    approvedHosts: { type: 'array', maxItems: 50, items: { type: 'string', maxLength: 253, pattern: '^[A-Za-z0-9.-]+$' } },
+  },
+  additionalProperties: false,
+};
+
 app.post<{
   Body: { name: string; caseRef?: string; seeds: { kind: IdentifierKind; value: string }[]; options?: Record<string, unknown>; scheduleMinutes?: number | null; runNow?: boolean };
 }>(
@@ -106,21 +128,8 @@ app.post<{
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 200 },
           caseRef: { type: 'string', maxLength: 100 },
-          seeds: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', required: ['kind', 'value'], properties: { kind: { enum: KINDS }, value: { type: 'string', minLength: 1, maxLength: 500 } } } },
-          options: {
-            type: 'object',
-            properties: {
-              sources: { type: 'array', items: { type: 'string' } },
-              maxDepth: { type: 'integer', minimum: 0, maximum: 3 },
-              maxDocuments: { type: 'integer', minimum: 1, maximum: 500 },
-              chainLookup: { type: 'boolean' },
-              maxChainLookups: { type: 'integer', minimum: 0, maximum: 100 },
-              useAi: { type: 'boolean' },
-              stableThreshold: { type: 'number', minimum: 0 },
-              approvedHosts: { type: 'array', maxItems: 50, items: { type: 'string', maxLength: 253, pattern: '^[A-Za-z0-9.-]+$' } },
-            },
-            additionalProperties: false,
-          },
+          seeds: SEEDS_SCHEMA,
+          options: OPTIONS_SCHEMA,
           scheduleMinutes: { type: ['integer', 'null'], minimum: 0, maximum: 43200 },
           runNow: { type: 'boolean' },
         },
@@ -155,6 +164,64 @@ app.post<{ Params: { id: string } }>('/api/trash/:id/restore', async (req, reply
 
 app.delete<{ Params: { id: string } }>('/api/trash/:id', async (req, reply) => {
   if (!(await purgeTrashed(req.params.id))) return reply.code(404).send({ error: 'Nie ma tej analizy w koszu' });
+  return { ok: true };
+});
+
+// Poprawienie parametrów analizy; opcjonalnie od razu nowy przebieg i unieważnienie poprzedniego (błędnego).
+app.put<{
+  Params: { id: string };
+  Body: { name: string; caseRef?: string | null; seeds: { kind: IdentifierKind; value: string }[]; options?: Record<string, unknown>; rerun?: boolean; invalidateRunId?: string; invalidReason?: InvalidReason; invalidNote?: string };
+}>(
+  '/api/investigations/:id',
+  {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name', 'seeds'],
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 200 },
+          caseRef: { type: ['string', 'null'], maxLength: 100 },
+          seeds: SEEDS_SCHEMA,
+          options: OPTIONS_SCHEMA,
+          rerun: { type: 'boolean' },
+          invalidateRunId: { type: 'string', maxLength: 100 },
+          invalidReason: { enum: Object.keys(INVALID_REASONS) },
+          invalidNote: { type: 'string', maxLength: 1000 },
+        },
+      },
+    },
+  },
+  async (req, reply) => {
+    const inv = await updateInvestigation(req.params.id, req.body as Parameters<typeof updateInvestigation>[1]);
+    if (!inv) return reply.code(404).send({ error: 'Nie znaleziono' });
+    if (req.body.invalidateRunId) await invalidateRun(req.body.invalidateRunId, req.body.invalidReason ?? 'wrong-identifier', req.body.invalidNote);
+    let runId: string | null = null;
+    if (req.body.rerun) {
+      try {
+        runId = await startRun(inv.id, 'manual');
+      } catch (e) {
+        return reply.code(409).send({ error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return { investigation: inv, runId };
+  },
+);
+
+// Unieważnienie przebiegu (zamiast usuwania) i cofnięcie unieważnienia.
+app.post<{ Params: { id: string }; Body: { reason: InvalidReason; note?: string } }>(
+  '/api/runs/:id/invalidate',
+  { schema: { body: { type: 'object', required: ['reason'], properties: { reason: { enum: Object.keys(INVALID_REASONS) }, note: { type: 'string', maxLength: 1000 } } } } },
+  async (req, reply) => {
+    if (req.body.reason === 'other' && !req.body.note?.trim()) return reply.code(400).send({ error: 'Przy powodzie „Inny powód” opis jest wymagany' });
+    const r = await invalidateRun(req.params.id, req.body.reason, req.body.note);
+    if (r === 'not-found') return reply.code(404).send({ error: 'Nie znaleziono przebiegu' });
+    if (r === 'running') return reply.code(409).send({ error: 'Nie można unieważnić trwającego przebiegu' });
+    return { ok: true };
+  },
+);
+
+app.post<{ Params: { id: string } }>('/api/runs/:id/revalidate', async (req, reply) => {
+  if (!(await revalidateRun(req.params.id))) return reply.code(404).send({ error: 'Przebieg nie jest unieważniony' });
   return { ok: true };
 });
 

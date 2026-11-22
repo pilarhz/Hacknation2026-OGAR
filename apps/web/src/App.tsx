@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError, INVESTIGATIONS_CHANGED, type InvestigationListItem, type Meta } from './api.ts';
 import { useTheme } from './theme.ts';
 import { ListPage } from './pages/ListPage.tsx';
-import { NewPage } from './pages/NewPage.tsx';
+import { EditInvestigationPage, NewPage } from './pages/NewPage.tsx';
 import { InvestigationPage } from './pages/InvestigationPage.tsx';
 import { ExtractorPage } from './pages/ExtractorPage.tsx';
 import { LabelsPage } from './pages/LabelsPage.tsx';
@@ -75,6 +75,7 @@ export function App() {
   if (needLogin) page = <Login onDone={loadMeta} />;
   else if (!meta) page = err ? <div className="panel callout red">Brak połączenia z API ({err}). Uruchom backend: <code>npm run dev</code>.</div> : <div className="empty">Ładowanie…</div>;
   else if (parts[0] === 'new') page = <NewPage meta={meta} />;
+  else if (parts[0] === 'inv' && parts[1] && parts[2] === 'edit') page = <EditInvestigationPage key={'edit-' + parts[1]} id={parts[1]} meta={meta} />;
   else if (parts[0] === 'inv' && parts[1]) page = <InvestigationPage key={parts[1]} id={parts[1]} meta={meta} />;
   else if (parts[0] === 'extract') page = <ExtractorPage />;
   else if (parts[0] === 'labels') page = <LabelsPage meta={meta} />;

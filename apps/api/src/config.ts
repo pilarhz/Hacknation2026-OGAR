@@ -58,7 +58,7 @@ export const config = {
     /** none | openai-compatible (np. lokalna Ollama/vLLM/LM Studio pod /v1). */
     provider: env('AI_PROVIDER', 'none'),
     baseUrl: env('AI_BASE_URL', 'http://127.0.0.1:11434/v1'),
-    model: env('AI_MODEL', 'llama3.1:8b'),
+    model: env('AI_MODEL', 'qwen2.5:3b'),
     apiKey: env('AI_API_KEY'),
   },
   schedulerTickMs: Number(env('SCHEDULER_TICK_MS', '30000')),

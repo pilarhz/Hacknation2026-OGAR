@@ -146,6 +146,34 @@ test('Kosz: usunięta analiza znika z listy, wraca po przywróceniu, a po 30 dni
   assert.equal(Number(left!.n), 0, 'po 30 dniach usunięta na stałe');
 });
 
+test('Unieważnienie przebiegu: zostaje w historii z powodem, nie liczy się na liście spraw, da się je cofnąć; poprawa parametrów', async () => {
+  const inv = await store.createInvestigation({ name: 'uniewaznienie', seeds: [{ kind: 'nick', value: 'cryptojanek' }], options: { sources: ['sandbox'] } });
+  const runId = await store.startRun(inv.id, 'manual');
+  assert.equal(await store.invalidateRun(runId, 'wrong-identifier'), 'running', 'trwającego przebiegu nie da się unieważnić');
+  await waitDone(inv.id);
+  const listed = () => store.listInvestigations().then((l) => l.find((i) => i.id === inv.id)!);
+  assert.ok((await listed()).topScore !== null, 'przed unieważnieniem lista pokazuje wynik');
+
+  assert.equal(await store.invalidateRun(runId, 'wrong-identifier', 'literówka w nicku'), 'ok');
+  const [run] = await store.listRuns(inv.id);
+  assert.equal(run.invalidated?.reason, 'wrong-identifier');
+  assert.equal(run.invalidated?.note, 'literówka w nicku');
+  assert.equal((await listed()).topScore, null, 'unieważniony przebieg nie jest „najnowszym wynikiem”');
+  assert.ok(await store.getRunResult(runId), 'przebieg i jego wynik zostają w bazie');
+
+  assert.equal(await store.revalidateRun(runId), true);
+  assert.equal((await store.listRuns(inv.id))[0].invalidated, null);
+  assert.equal(await store.revalidateRun(runId), false);
+
+  const upd = await store.updateInvestigation(inv.id, { name: 'uniewaznienie (poprawione)', caseRef: 'RP/1', seeds: [{ kind: 'nick', value: 'nowak_btc' }], options: { sources: ['sandbox'] } });
+  assert.equal(upd?.name, 'uniewaznienie (poprawione)');
+  assert.equal(upd?.seeds[0].value, 'nowak_btc');
+  assert.equal(upd?.caseRef, 'RP/1');
+  assert.equal((await store.listRuns(inv.id)).length, 1, 'poprawa parametrów nie rusza istniejących przebiegów');
+  await store.trashInvestigation(inv.id);
+  await store.purgeTrashed(inv.id);
+});
+
 test('Znak NUL w treści z internetu nie psuje zapisu (Postgres go nie akceptuje w TEXT/JSONB)', async () => {
   const { toJsonb } = await import('../src/db/db.ts');
   await db().query('INSERT INTO http_cache (url, fetched_at, status, content_type, body) VALUES ($1, now(), 200, $2, $3)', ['https://nul.example/', 'text/plain', 'a\u0000b']);
