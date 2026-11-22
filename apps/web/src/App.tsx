@@ -162,7 +162,7 @@ export function App() {
   );
 }
 
-// „Ostatnie sprawy" w menu bocznym – 5 ostatnio zmienianych analiz z najwyższym Wskaźnikiem Pewności.
+// „Ostatnie analizy" w menu bocznym – wszystkie analizy od ostatnio zmienianej, z najwyższym Wskaźnikiem Pewności.
 function RecentCases({ current }: { current?: string }) {
   const [items, setItems] = useState<InvestigationListItem[]>([]);
   useEffect(() => {
@@ -176,16 +176,18 @@ function RecentCases({ current }: { current?: string }) {
     };
   }, []);
   if (!items.length) return null;
-  const recent = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
+  const recent = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return (
     <div className="recent">
-      <div className="nav-group">Ostatnie sprawy</div>
-      {recent.map((i) => (
-        <a key={i.id} href={`#/inv/${i.id}`} className={i.id === current ? 'active' : ''} aria-current={i.id === current ? 'page' : undefined} title={i.name}>
-          <span className="recent-name">{i.name}</span>
-          <span className="recent-score">{i.topScore != null ? `${i.topScore}%` : '—'}</span>
-        </a>
-      ))}
+      <div className="recent-head">Ostatnie analizy</div>
+      <div className="recent-list">
+        {recent.map((i) => (
+          <a key={i.id} href={`#/inv/${i.id}`} className={i.id === current ? 'active' : ''} aria-current={i.id === current ? 'page' : undefined} title={i.name}>
+            <span className="recent-name">{i.name}</span>
+            <span className="recent-score">{i.topScore != null ? `${i.topScore}%` : '—'}</span>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
@@ -197,7 +199,7 @@ const MOON = 'M21 13A9 9 0 1111 3a7 7 0 0010 10z';
 const NET = (() => {
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const pts = Array.from({ length: 46 }, () => ({ x: 12 + rnd() * 208, y: 552 - Math.pow(rnd(), 1.4) * 540 }));
+  const pts = Array.from({ length: 58 }, () => ({ x: 12 + rnd() * 208, y: 672 - Math.pow(rnd(), 1.4) * 660 }));
   const seen = new Set<string>();
   const edges: [number, number][] = [];
   pts.forEach((p, i) => {
@@ -214,13 +216,13 @@ const NET = (() => {
         }
       });
   });
-  return { pts, edges, hot: new Set([3, 11, 19, 31]) };
+  return { pts, edges, hot: new Set([3, 11, 19, 31, 44]) };
 })();
 
 function SidenavPattern() {
   return (
     <div className="sidenav-pattern" aria-hidden>
-      <svg viewBox="0 0 232 560" preserveAspectRatio="xMidYMax slice">
+      <svg viewBox="0 0 232 680" preserveAspectRatio="xMidYMax slice">
         {NET.edges.map(([i, j]) => (
           <line key={`${i}-${j}`} x1={NET.pts[i].x} y1={NET.pts[i].y} x2={NET.pts[j].x} y2={NET.pts[j].y} />
         ))}
@@ -250,7 +252,7 @@ function TrashCount() {
 
 function Icon({ d }: { d: string }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d={d} />
     </svg>
   );

@@ -51,9 +51,6 @@ export function TrashPage() {
       <div className="page-head">
         <div>
           <h1>Kosz</h1>
-          <p className="lead">
-            Usunięte analizy są tu przechowywane przez {days} dni razem z przebiegami i dokumentami. Możesz je w tym czasie przywrócić. Po {days} dniach są usuwane na stałe.
-          </p>
         </div>
       </div>
 

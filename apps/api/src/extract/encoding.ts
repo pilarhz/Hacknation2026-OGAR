@@ -30,7 +30,7 @@ export function base58Decode(input: string): Uint8Array | null {
   return Uint8Array.from(bytes.reverse());
 }
 
-export function base58Encode(data: Uint8Array): string {
+function base58Encode(data: Uint8Array): string {
   const digits: number[] = [0];
   for (const byte of data) {
     let carry = byte;
@@ -100,13 +100,13 @@ function hrpExpand(hrp: string): number[] {
   return out;
 }
 
-export interface Bech32Decoded {
+interface Bech32Decoded {
   hrp: string;
   data: number[];
   variant: 'bech32' | 'bech32m';
 }
 
-export function bech32Decode(input: string): Bech32Decoded | null {
+function bech32Decode(input: string): Bech32Decoded | null {
   if (input.length > 90) return null;
   const lower = input.toLowerCase();
   if (input !== lower && input !== input.toUpperCase()) return null; // mieszana wielkość liter
@@ -125,7 +125,7 @@ export function bech32Decode(input: string): Bech32Decoded | null {
   return { hrp, data: data.slice(0, -6), variant };
 }
 
-export function bech32Encode(hrp: string, data: number[], variant: 'bech32' | 'bech32m'): string {
+function bech32Encode(hrp: string, data: number[], variant: 'bech32' | 'bech32m'): string {
   const values = [...hrpExpand(hrp), ...data, 0, 0, 0, 0, 0, 0];
   const mod = polymod(values) ^ (variant === 'bech32' ? BECH32_CONST : BECH32M_CONST);
   const checksum: number[] = [];
@@ -133,7 +133,7 @@ export function bech32Encode(hrp: string, data: number[], variant: 'bech32' | 'b
   return hrp + '1' + [...data, ...checksum].map((d) => BECH32_CHARSET[d]).join('');
 }
 
-export function convertBits(data: number[], from: number, to: number, pad: boolean): number[] | null {
+function convertBits(data: number[], from: number, to: number, pad: boolean): number[] | null {
   let acc = 0;
   let bits = 0;
   const out: number[] = [];

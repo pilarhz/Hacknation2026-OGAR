@@ -37,12 +37,30 @@
         { "hash": "SYN-BTC-0003", "time": "2026-02-01T09:45:00Z", "direction": "out", "counterparty": "bc1q3ns7tvydzamwvx050ame2d84l6twh50hhwsun9", "asset": "BTC", "amount": 0.025 }
       ]
     },
-    "BTC:bc1q9tuvwnq9s56nhkagcrvrzxhj7dwzfvdnvjufu8": {
-      "balance": 0.0042,
+    "BTC:bc1ql8ur7j730hwtyn3jfwxcvwwwyqttksaln6tal8": {
+      "balance": 0.0061,
       "txs": [
-        { "hash": "SYN-BTC-0101", "time": "2026-06-03T13:10:00Z", "direction": "in", "counterparty": "bc1q2u69r8hvvljlhj83slnl9pca2hf6yjv764sxyy", "asset": "BTC", "amount": 0.0042 }
+        { "hash": "SYN-BTC-0201", "time": "2026-01-14T18:00:00Z", "direction": "in", "counterparty": "bc1q77g6j4w5pn0klz029mvtenjser0x3rymt3ng4g", "asset": "BTC", "amount": 0.0021 },
+        { "hash": "SYN-BTC-0202", "time": "2026-02-09T07:30:00Z", "direction": "in", "counterparty": "bc1qdv2tkqnru3kvqgvxrz7sz38f37j6cep6drgpun", "asset": "BTC", "amount": 0.004 }
       ]
     },
+    "BTC:bc1q3nvmyp6hwzzyyjda3w0dvvvqp8h4vcku6huhnw": {
+      "balance": 0.01,
+      "txs": [
+        { "hash": "SYN-BTC-0301", "time": "2026-06-02T10:00:00Z", "direction": "in", "counterparty": "bc1qdq3fztcfhtvlqyn7erjyn8c8ztgey9gc3zc3ua", "asset": "BTC", "amount": 0.85 },
+        { "hash": "SYN-BTC-0302", "time": "2026-06-04T15:20:00Z", "direction": "out", "counterparty": "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo", "asset": "BTC", "amount": 0.84 }
+      ]
+    },
+    "TRX:TUif3irKWRKLhzUw6yxyJNXayRqAncnCT9": {
+      "balance": 3.1,
+      "txs": [
+        { "hash": "SYN-TRX-0101", "time": "2026-04-16T08:10:00Z", "direction": "in", "counterparty": "TT46wVY3CT5yaSDsrAagp9VVqem7yfxxUa", "asset": "USDT", "amount": 1200 },
+        { "hash": "SYN-TRX-0102", "time": "2026-04-17T13:45:00Z", "direction": "in", "counterparty": "TVYeJaPNio7a8uBBsxspwGn7e9hHCLHcqB", "asset": "USDT", "amount": 3400 },
+        { "hash": "SYN-TRX-0103", "time": "2026-04-18T20:05:00Z", "direction": "in", "counterparty": "TCSkKVuAfhLENMMcZddhkN8HY6uiGMCzgk", "asset": "USDT", "amount": 2600 },
+        { "hash": "SYN-TRX-0104", "time": "2026-04-19T16:30:00Z", "direction": "out", "counterparty": "TY2fzUHoQzManzx9UsdjYoE2Y7kQ9LdKsW", "asset": "USDT", "amount": 7100 }
+      ]
+    },
+    "ETH:0xa88e193af8f2bf13bead0515f635371ff4a3357d": { "balance": 0, "txs": [] },
     "BTC:bc1qfzspkgc3zjlltz2nd32xudvrg38ytx58w9z59w": { "balance": 0, "txs": [] },
     "TRX:TXLFKvqCJRzYQHsHMYNgtqHVq6VdNqgkSq": {
       "balance": 12.5,

@@ -9,7 +9,7 @@ import { config, REPO_ROOT } from './config.ts';
 import { audit, db, iso } from './db/db.ts';
 import { describeSources } from './sources/registry.ts';
 import { IDENTIFIER_LABELS, extractIdentifiers, type IdentifierKind } from './extract/identifiers.ts';
-import { extractAddresses } from './extract/addresses.ts';
+import { CHAINS, extractAddresses, type Chain } from './extract/addresses.ts';
 import { CONTEXT_INFO } from './scoring/context.ts';
 import { BANDS, SCORING_PARAMS } from './scoring/confidence.ts';
 import { CATEGORY_LABELS, type LabelCategory } from './chain/types.ts';
@@ -225,10 +225,15 @@ app.post<{ Params: { id: string } }>('/api/runs/:id/revalidate', async (req, rep
   return { ok: true };
 });
 
-app.put<{ Params: { id: string }; Body: { minutes: number | null } }>('/api/investigations/:id/schedule', async (req) => {
-  await updateSchedule(req.params.id, req.body?.minutes ?? null);
-  return { investigation: await getInvestigation(req.params.id) };
-});
+app.put<{ Params: { id: string }; Body: { minutes: number | null } }>(
+  '/api/investigations/:id/schedule',
+  { schema: { body: { type: 'object', required: ['minutes'], properties: { minutes: { type: ['integer', 'null'], minimum: 0, maximum: 43200 } } } } },
+  async (req, reply) => {
+    if (!(await getInvestigation(req.params.id))) return reply.code(404).send({ error: 'Nie znaleziono' });
+    await updateSchedule(req.params.id, req.body.minutes);
+    return { investigation: await getInvestigation(req.params.id) };
+  },
+);
 
 app.post<{ Params: { id: string }; Body: { host: string } }>(
   '/api/investigations/:id/approved-hosts',
@@ -300,9 +305,9 @@ app.get<{ Querystring: { a: string; b: string } }>('/api/compare', async (req, r
 });
 
 app.get('/api/labels', async () => await listLabels());
-app.post<{ Body: { chain: 'BTC' | 'ETH' | 'TRX' | 'LTC' | 'DOGE' | 'SOL' | 'XMR'; address: string; name: string; category: LabelCategory; note?: string } }>(
+app.post<{ Body: { chain: Chain; address: string; name: string; category: LabelCategory; note?: string } }>(
   '/api/labels',
-  { schema: { body: { type: 'object', required: ['chain', 'address', 'name', 'category'], properties: { chain: { enum: ['BTC', 'ETH', 'TRX', 'LTC', 'DOGE', 'SOL', 'XMR'] }, address: { type: 'string', maxLength: 120 }, name: { type: 'string', maxLength: 200 }, category: { enum: Object.keys(CATEGORY_LABELS) }, note: { type: 'string', maxLength: 500 } } } } },
+  { schema: { body: { type: 'object', required: ['chain', 'address', 'name', 'category'], properties: { chain: { enum: [...CHAINS] }, address: { type: 'string', maxLength: 120 }, name: { type: 'string', maxLength: 200 }, category: { enum: Object.keys(CATEGORY_LABELS) }, note: { type: 'string', maxLength: 500 } } } } },
   async (req) => {
     await addCustomLabel(req.body.chain, req.body.address.trim(), req.body.name, req.body.category, req.body.note);
     await audit('label.add', req.body);

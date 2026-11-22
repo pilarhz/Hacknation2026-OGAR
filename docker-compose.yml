@@ -45,6 +45,8 @@ services:
   # ollama:
   #   image: ollama/ollama:0.9.0
   #   volumes: [ollama:/root/.ollama]
+  # (po starcie: docker compose exec ollama ollama pull qwen2.5:3b)
 
 volumes:
   ogar-pg:
+  # ollama:

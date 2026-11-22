@@ -7,39 +7,40 @@ interface Seed {
   value: string;
 }
 
+// Każdy scenariusz: inna osoba, inny typ danych wejściowych, inny główny cel. {SANDBOX} = adres piaskownicy.
 const PRESETS: { title: string; desc: string; name: string; seeds: Seed[]; sources: string[]; schedule?: number }[] = [
   {
     title: 'Scenariusz 1 · pełna ścieżka od nicka',
-    desc: 'Profil → strona WWW → ogłoszenie P2P → Telegram → lista mailingowa. Synergia źródeł, cash-out, mikser.',
+    desc: 'Nick → profil → strona WWW → ogłoszenie P2P → Telegram → lista mailingowa. Łączenie kont, synergia źródeł, wyjście do fiat, mikser.',
     name: 'Scenariusz testowy 1 – cryptojanek',
     seeds: [{ kind: 'nick', value: 'cryptojanek' }],
     sources: ['sandbox', 'web'],
   },
   {
     title: 'Scenariusz 2 · fałszywe trafienia',
-    desc: 'Użytkownik publikuje adresy giełdy, zbiórki i komentuje giveaway – narzędzie nie może ich przypisać.',
+    desc: 'Nick osoby, która wkleja adresy giełdy i zbiórki oraz komentuje giveaway. Żaden z tych adresów nie może zostać jej przypisany.',
     name: 'Scenariusz testowy 2 – nowak_btc',
     seeds: [{ kind: 'nick', value: 'nowak_btc' }],
     sources: ['sandbox', 'web'],
   },
   {
     title: 'Scenariusz 3 · od adresu do osoby',
-    desc: 'Wejście: publiczny adres ETH. Wyszukiwanie odwrotne → autor ogłoszenia → kolejne ślady.',
-    name: 'Scenariusz testowy 3 – adres 0xCfE5…',
-    seeds: [{ kind: 'address', value: '0xCfE541F7a25C5cD54277D1Dc4A2Ca6E37626ff4A' }],
+    desc: 'Tylko adres TRON. Wyszukiwanie odwrotne → autorka ogłoszenia → jej kanał Telegram i drugi adres. Ostrzeżenie „scam” nie wskazuje właściciela. Wypłaty na kartę krypto-fiat.',
+    name: 'Scenariusz testowy 3 – adres TUif3i…',
+    seeds: [{ kind: 'address', value: 'TUif3irKWRKLhzUw6yxyJNXayRqAncnCT9' }],
     sources: ['sandbox', 'web'],
   },
   {
-    title: 'Scenariusz 4 · analiza cykliczna',
-    desc: 'Jak scenariusz 1, uruchamiana co 1 min. Przełącz okres w piaskownicy, by zobaczyć podmianę adresu w profilu.',
-    name: 'Scenariusz testowy 4 – monitoring cryptojanek',
-    seeds: [{ kind: 'nick', value: 'cryptojanek' }],
+    title: 'Scenariusz 4 · monitoring profilu',
+    desc: 'URL profilu sprawdzany co 1 min. Przełącz okres w piaskownicy: właściciel podmienia adres do wsparcia, a z nowego adresu środki idą na giełdę.',
+    name: 'Scenariusz testowy 4 – monitoring marek_dev',
+    seeds: [{ kind: 'url', value: '{SANDBOX}/s/kodhub.example/marek_dev' }],
     sources: ['sandbox', 'web'],
     schedule: 1,
   },
   {
-    title: 'Źródła publiczne · adres instytucji',
-    desc: 'Adres zbiórki rządu Ukrainy (BTC) – wyszukiwanie w Hacker News (i SearXNG, jeśli skonfigurowany), dane z Esplora; oczekiwane wykluczenie (zbiórka).',
+    title: 'Scenariusz 5 · prawdziwe źródła publiczne',
+    desc: 'Adres BTC zbiórki rządu Ukrainy w prawdziwym internecie: Hacker News (i SearXNG, jeśli jest), dane z Esplory. Oczekiwane wykluczenie jako zbiórka.',
     name: 'Test źródeł publicznych – adres zbiórki',
     seeds: [{ kind: 'address', value: '357a3So9CbsNfBBgFYACGvxxS6tMaDoa1P' }],
     sources: ['hackernews', 'searxng'],
@@ -68,13 +69,12 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
 
   const applyPreset = (p: (typeof PRESETS)[number]) => {
     setName(p.name);
-    setSeeds(p.seeds);
+    setSeeds(p.seeds.map((s) => ({ ...s, value: s.value.replace('{SANDBOX}', meta.config.sandboxUrl) })));
     setSources(p.sources.filter((id) => meta.sources.find((s) => s.id === id)?.available));
     setSchedule(p.schedule ?? 0);
   };
 
   const mixed = sources.includes('sandbox') && sources.some((s) => !meta.sources.find((x) => x.id === s)?.synthetic && s !== 'web');
-  const nickOnly = seeds.some((s) => s.kind === 'nick' && s.value.trim()) && !seeds.some((s) => ['social', 'email', 'url', 'telegram', 'phone'].includes(s.kind) && s.value.trim());
   const hasSeed = seeds.some((s) => s.value.trim());
   const valid = name.trim() && hasSeed && sources.length && !(lastRun && invalidateLast && reason === 'other' && !note.trim());
 
@@ -115,11 +115,6 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
       <div className="page-head">
         <div>
           <h1>{inv ? 'Popraw parametry analizy' : 'Nowa analiza'}</h1>
-          <p className="lead">
-            {inv
-              ? 'Popraw identyfikatory, źródła lub ustawienia. Po zapisaniu uruchomi się nowy przebieg. Dotychczasowe przebiegi zostają w historii sprawy.'
-              : 'Podaj co najmniej jeden identyfikator. Narzędzie przeszuka publiczne źródła, wyodrębni adresy krypto, policzy Wskaźnik Pewności i przeanalizuje aktywność on-chain.'}
-          </p>
         </div>
         {/* w tym samym miejscu co „Nowa analiza" na liście analiz */}
         <button type="button" className="cta-back" onClick={() => go(inv ? `/inv/${inv.id}` : '/')}>
@@ -136,7 +131,6 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
             <span className="step-num">1</span>
             <div>
               <h3>Kogo badamy?</h3>
-              <p>{inv ? 'Sprawdź i popraw dane wejściowe analizy.' : 'Wpisz dane albo kliknij gotowy scenariusz demonstracyjny poniżej.'}</p>
             </div>
           </div>
           <div className="row" style={{ marginBottom: 14, alignItems: 'flex-start' }}>
@@ -175,28 +169,20 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
           <button className="sm" onClick={() => setSeeds([...seeds, { kind: 'nick', value: '' }])}>
             + Dodaj kolejny identyfikator
           </button>
-          {nickOnly && (
-            <div className="callout small">
-              <b>Sam nick to słaba kotwica.</b> Ten sam nick w różnych serwisach może należeć do różnych osób – konta połączone z badanym wyłącznie nickiem dostaną karę R9. Jeśli znasz profil (URL), e-mail lub Telegram, dodaj go.
-            </div>
-          )}
 
           {!inv && (
             <>
-          <div className="section-title" style={{ marginTop: 24 }}>
-            Scenariusze demonstracyjne
-          </div>
-          <div className="presets">
-            {PRESETS.map((p) => (
-              <button key={p.title} className={`preset ${name === p.name ? 'active' : ''}`} onClick={() => applyPreset(p)}>
-                <b>{p.title}</b>
-                <span>{p.desc}</span>
-              </button>
-            ))}
-          </div>
-          <div className="small muted" style={{ marginTop: 8 }}>
-            Scenariusze 1–4 działają na piaskownicy z fikcyjnymi danymi ({meta.config.sandboxUrl}) – bez przetwarzania danych prawdziwych osób.
-          </div>
+              <div className="section-title" style={{ marginTop: 24 }}>
+                Scenariusze demonstracyjne
+              </div>
+              <div className="presets">
+                {PRESETS.map((p) => (
+                  <button key={p.title} className={`preset ${name === p.name ? 'active' : ''}`} onClick={() => applyPreset(p)}>
+                    <b>{p.title}</b>
+                    <span>{p.desc}</span>
+                  </button>
+                ))}
+              </div>
             </>
           )}
         </section>
@@ -206,7 +192,6 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
             <span className="step-num">2</span>
             <div>
               <h3>Gdzie szukać?</h3>
-              <p>Zaznacz źródła. Każde przyjmuje tylko wybrane typy identyfikatorów.</p>
             </div>
           </div>
           <div className="source-grid">
@@ -237,7 +222,6 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
             <span className="step-num">3</span>
             <div>
               <h3>Jak głęboko i jak często?</h3>
-              <p>Wartości domyślne pasują do większości spraw.</p>
             </div>
           </div>
           <div className="row" style={{ alignItems: 'flex-start', gap: 16 }}>
@@ -264,11 +248,10 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
             </label>
             )}
           </div>
-          {inv && <div className="small muted" style={{ marginTop: 8 }}>Harmonogram analizy cyklicznej zmienisz na stronie analizy (pole „Analiza cykliczna”).</div>}
           <label className="check" style={{ marginTop: 10 }}>
             <input type="checkbox" checked={chainLookup} onChange={(e) => setChainLookup(e.target.checked)} />
             <div>
-              Analiza on-chain <span className="small muted">– Blockscout, Esplora, Tronscan (publiczne API)</span>
+              Analiza on-chain
             </div>
           </label>
           <details className="adv" style={{ marginTop: 6 }}>
@@ -281,7 +264,7 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
               <input type="checkbox" checked={useAi} onChange={(e) => setUseAi(e.target.checked)} disabled={meta.config.ai === 'none'} />
               <div>
                 Sugestie AI dla niejednoznacznego kontekstu{' '}
-                <span className="small muted">{meta.config.ai === 'none' ? '(wyłączone – ustaw AI_PROVIDER, np. lokalna Ollama)' : `(${meta.config.aiModel}, bez wpływu na wynik)`}</span>
+                <span className="small muted">{meta.config.ai === 'none' ? '(wyłączone)' : `(${meta.config.aiModel})`}</span>
               </div>
             </label>
           </details>
@@ -293,7 +276,6 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
               <span className="step-num">4</span>
               <div>
                 <h3>Co z poprzednim przebiegiem?</h3>
-                <p>Przebieg #{lastRun.seq} zostanie w historii sprawy. Jeśli był błędny, oznacz go, żeby nie liczył się jako aktualny wynik.</p>
               </div>
             </div>
             <label className="check">
@@ -307,10 +289,15 @@ export function NewPage({ meta, edit }: { meta: Meta; edit?: { inv: Investigatio
         {err && <div className="callout red">{err}</div>}
         <div className="submit-bar">
           <button className="primary lg" disabled={!valid || busy} onClick={submit}>
-            {busy ? (inv ? 'Zapisywanie…' : 'Uruchamianie…') : inv ? 'Zapisz i uruchom ponownie →' : 'Uruchom analizę →'}
+            {busy ? (inv ? 'Zapisywanie…' : 'Uruchamianie…') : inv ? 'Zapisz i uruchom ponownie' : 'Uruchom analizę'}
+            {!busy && (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            )}
           </button>
           <span className="small muted">
-            {missing.length ? `Uzupełnij: ${missing.join(', ')}.` : 'Korzystamy wyłącznie z publicznych źródeł (OSINT) – bez logowania i obchodzenia zabezpieczeń.'}
+            {missing.length > 0 && `Uzupełnij: ${missing.join(', ')}.`}
           </span>
         </div>
       </div>

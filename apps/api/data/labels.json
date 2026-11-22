@@ -32,6 +32,7 @@
     { "chain": "ETH", "address": "0xCABE1938fca02c00B1485ba4c5561D8cDa1aaEAf", "name": "BitGiełda PL – hot wallet (FIKCYJNA giełda)", "category": "CEX", "synthetic": true },
     { "chain": "BTC", "address": "bc1q3ns7tvydzamwvx050ame2d84l6twh50hhwsun9", "name": "BitGiełda PL – BTC (FIKCYJNA giełda)", "category": "CEX", "synthetic": true },
     { "chain": "ETH", "address": "0x640Ce0A2BE62c34091daba4Be1a9355b17F01D1a", "name": "KantorKrypto24 – kantor online krypto→PLN (FIKCYJNY)", "category": "OFFRAMP", "synthetic": true },
-    { "chain": "TRX", "address": "TJAAEGDiGaTpBcrrnvwscLiXd4u219B6rN", "name": "KantorKrypto24 – TRC-20 (FIKCYJNY)", "category": "OFFRAMP", "synthetic": true }
+    { "chain": "TRX", "address": "TJAAEGDiGaTpBcrrnvwscLiXd4u219B6rN", "name": "KantorKrypto24 – TRC-20 (FIKCYJNY)", "category": "OFFRAMP", "synthetic": true },
+    { "chain": "TRX", "address": "TY2fzUHoQzManzx9UsdjYoE2Y7kQ9LdKsW", "name": "KryptoKarta – doładowanie karty krypto-fiat (FIKCYJNA)", "category": "OFFRAMP", "synthetic": true }
   ]
 }

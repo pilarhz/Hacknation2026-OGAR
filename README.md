@@ -1,339 +1,515 @@
-# OGAR - OSINTowy łapacz adresów i rejestrów
+# OGAR – OSINTowy łapacz adresów i rejestrów
 
-**HackNation 2026 wyzwanie Ministerstwa Finansów / KAS**
+**HackNation 2026 · wyzwanie Ministerstwa Finansów / KAS („OSINTowy Łapacz Cyfrowych Śladów”)**
 
-Narzędzie analityczne OSINT, które po podaniu identyfikatora (nick, e-mail, Telegram, imię i nazwisko, strona WWW albo **publiczny adres kryptowalutowy**):
+Ktoś sprzedaje kryptowaluty na forum, ma portfel w profilu na GitHubie i podaje adres do rozliczeń na Telegramie, ale nie wykazuje tego w PIT-38. Analityk KAS musi dziś ręcznie przeklikać się przez te miejsca, połączyć konta i ocenić, czy adres na pewno należy do tej osoby.
 
-1. przeszukuje publicznie dostępne źródła Web2 i **automatycznie pivotuje** po nowo odkrytych identyfikatorach,
-2. **wykrywa i waliduje adresy kryptowalut** w treściach (sumy kontrolne: Base58Check, Bech32/Bech32m, EIP-55),
-3. ustala, **czy adres opublikował badany**, czy ktoś inny,
-4. wylicza **Wskaźnik Pewności (Confidence Score, 0–100%)** według jawnego, odtwarzalnego algorytmu,
-5. **odrzuca błędne przypisania**: giełdy (CEX), smart kontrakty, miksery, zbiórki, kantory,
-6. analizuje **aktywność on-chain** (BTC, ETH, TRON) i wykrywa **sygnały wyjścia do walut tradycyjnych (Fiat Cash-Out)**,
-7. zapisuje wyniki z pełnymi metadanymi (URL, czas pobrania, SHA-256 treści), **uruchamia analizy cyklicznie** i **porównuje przebiegi**, w tym wykrywa podmianę adresu portfela w profilu,
-8. generuje **raport OSINT**, który oddziela fakty źródłowe, wyniki obliczeń i wnioski wymagające weryfikacji. Raport jest czytelny dla osób bez wiedzy IT.
+**OGAR robi to automatycznie.** Wpisujesz nick, e-mail, Telegram, imię i nazwisko, stronę WWW albo adres krypto. OGAR:
 
-> Narzędzie korzysta wyłącznie z publicznie dostępnych źródeł. Nie loguje się na cudze konta, nie obchodzi zabezpieczeń i nie skanuje systemów. Łączy się tylko z hostami z białej listy i rejestruje każde zapytanie.
+1. **szuka śladów** w publicznych źródłach i sam idzie dalej po nowo znalezionych identyfikatorach (np. z profilu bierze e-mail, a z e-maila znajduje ogłoszenie),
+2. **wyciąga adresy kryptowalut** z tekstu i sprawdza ich sumy kontrolne, więc literówki i podróbki odpadają,
+3. **ustala, kto opublikował adres**: badany czy ktoś inny w tym samym wątku,
+4. **liczy Wskaźnik Pewności (0–99%)** według jawnych reguł. Każdy punkt ma uzasadnienie i link do źródła,
+5. **odrzuca adresy, których nie wolno przypisać osobie**: giełdy, smart kontrakty, miksery, zbiórki, kantory,
+6. **sprawdza blockchain** (BTC, ETH, TRON) i szuka **sygnałów wyjścia do walut tradycyjnych** (wpłata na giełdę, kantor, zamiana na stablecoin),
+7. **zapisuje każdy przebieg** z dowodami (URL, czas pobrania, SHA-256 treści), **powtarza analizę cyklicznie** i **porównuje przebiegi**, np. wykrywa podmianę portfela w profilu,
+8. **tworzy raport OSINT**, który oddziela fakty, obliczenia i wnioski do sprawdzenia. Raport da się przeczytać bez wiedzy technicznej.
+
+> OGAR korzysta tylko z publicznych źródeł. Nie loguje się na cudze konta, nie obchodzi zabezpieczeń i nie skanuje systemów. Łączy się wyłącznie z hostami z białej listy i zapisuje każde zapytanie.
 
 ---
 
 ## Spis treści
-- [Szybki start](#szybki-start)
-- [Scenariusze testowe (dane syntetyczne)](#scenariusze-testowe-dane-syntetyczne)
+
+- [Uruchom i przetestuj w 5 minut](#uruchom-i-przetestuj-w-5-minut)
+- [Scenariusze testowe](#scenariusze-testowe)
+- [Przykładowy wynik](#przykładowy-wynik)
 - [Jak to działa](#jak-to-działa)
-- [Parametry wyszukiwania](#parametry-wyszukiwania)
-- [Wskaźnik Pewności – algorytm](#wskaźnik-pewności--algorytm)
+- [Wskaźnik Pewności](#wskaźnik-pewności)
 - [Odrzucanie fałszywych trafień](#odrzucanie-fałszywych-trafień)
-- [Wskaźniki on-chain i Fiat Cash-Out](#wskaźniki-on-chain-i-fiat-cash-out)
+- [On-chain i wyjście do fiat](#on-chain-i-wyjście-do-fiat)
 - [Raport](#raport)
+- [Parametry wyszukiwania i źródła](#parametry-wyszukiwania-i-źródła)
+- [AI (opcjonalnie)](#ai-opcjonalnie)
+- [Inne sposoby uruchomienia](#inne-sposoby-uruchomienia)
 - [Architektura](#architektura)
-- [API REST](#api-rest)
-- [Bezpieczeństwo i zgodność](#bezpieczeństwo-i-zgodność)
+- [Bezpieczeństwo](#bezpieczeństwo)
 - [Rozbudowa](#rozbudowa)
-- [Źródła danych i licencje](#źródła-danych-i-licencje)
+- [Zgodność z wymaganiami zadania](#zgodność-z-wymaganiami-zadania)
+- [Licencje i źródła danych](#licencje-i-źródła-danych)
 - [Ograniczenia](#ograniczenia)
 
 ---
 
-## Szybki start
+## Uruchom i przetestuj w 5 minut
 
-Wymagania: **Node.js ≥ 22.18** (rekomendowany 24; natywne uruchamianie TypeScript). Nie potrzeba instalowania serwera bazy, GPU, kluczy API ani Dockera.
-
-**Baza danych: PostgreSQL** – jeden schemat i te same zapytania w dwóch trybach:
-
-| Tryb | Kiedy | Silnik |
-|---|---|---|
-| Wbudowany (domyślnie) | `npm run dev` / `npm start` bez konfiguracji | [PGlite](https://pglite.dev) – PostgreSQL skompilowany do WebAssembly, działający w procesie Node; dane w `apps/api/data/pg` (`DB_PATH`) |
-| Serwer | ustawione `DATABASE_URL=postgres://…` (np. `docker compose`) | PostgreSQL 17 przez sterownik `pg` |
-
-Oba tryby są pokryte tym samym testem integracyjnym ([`test/store.test.ts`](apps/api/test/store.test.ts)), uruchomionym na PGlite i na serwerze PostgreSQL 17.12 w Dockerze.
+Potrzebujesz tylko **Node.js 22.18 lub nowszego** (zalecany 24). Baza danych, klucze API, GPU ani Docker nie są potrzebne.
 
 ```bash
 npm install
-npm run build      # buduje frontend (apps/web/dist)
-npm run dev        # piaskownica :4100 + API :8080 + UI (Vite) :5173
+npm run dev
 ```
 
-Otwórz **http://127.0.0.1:5173** (tryb deweloperski) albo **http://127.0.0.1:8080**, gdzie API serwuje zbudowany frontend.
+Polecenie uruchamia trzy rzeczy naraz:
 
-Wersja produkcyjna w jednym procesie:
+| Co | Adres | Po co |
+|---|---|---|
+| Aplikacja (UI) | **http://127.0.0.1:5173** | tu pracujesz |
+| API | http://127.0.0.1:8080 | silnik analizy i baza |
+| Piaskownica | http://127.0.0.1:4100 | fikcyjny „internet” do testów |
+
+Baza PostgreSQL uruchamia się sama w procesie Node ([PGlite](https://pglite.dev)), a dane zapisuje w `apps/api/data/pg`.
+
+### Pierwsza analiza: co kliknąć i co powinieneś zobaczyć
+
+1. Otwórz http://127.0.0.1:5173 i kliknij **Nowa analiza**.
+2. W sekcji **Scenariusze demonstracyjne** wybierz **scenariusz 1** (nick `cryptojanek`) i kliknij **Uruchom analizę**. Analiza trwa kilka sekund.
+3. Na zakładce **Podsumowanie** powinieneś zobaczyć:
+   - wniosek główny: adres BTC z wynikiem **99%**,
+   - **4 adresy przypisane** badanemu, **2 wykluczone** (Binance i kontrakt USDT) i **5 sygnałów wyjścia do fiat**.
+4. Kliknij adres, a potem **Zobacz dowody i wyliczenie**. Zobaczysz, skąd wziął się wynik, reguła po regule, oraz cytat ze źródła.
+5. Przejrzyj pozostałe zakładki:
+   - **Mapa powiązań**: jak OGAR przeszedł od nicku do kolejnych kont i adresów,
+   - **Przepływ środków**: transakcje w kolejności czasu, z podświetlonym wyjściem do fiat,
+   - **Źródła i tożsamość**: każdy dokument z datą pobrania i SHA-256 oraz dlaczego konta uznano za jedną osobę,
+   - **Rejestr zapytań**: każde zapytanie sieciowe tego przebiegu.
+6. Kliknij **Raport OSINT ↗**. Otworzy się raport do druku lub zapisu jako PDF.
+
+### Testy automatyczne
+
 ```bash
-npm run sandbox &  # tylko do scenariuszy testowych
-npm start          # build frontendu + API na :8080
+npm test            # 35 testów: adresy i sumy kontrolne, identyfikatory, reguły punktacji, scenariusze 1–4, baza danych
+npm run typecheck   # kontrola typów TypeScript
 ```
-
-Docker – pełny stos z serwerem PostgreSQL 17 (przetestowane: budowa obrazu, scenariusz 1 end-to-end, trwałość danych po restarcie):
-```bash
-docker compose up --build   # postgres + api :8080 + piaskownica :4100
-```
-Aplikacja: **http://127.0.0.1:8080**. Hasło bazy domyślnie `ogar_lokalnie` – w innym środowisku ustaw `POSTGRES_PASSWORD` (np. w pliku `.env` obok `docker-compose.yml`). Port bazy nie jest wystawiany poza sieć kontenerów. Ograniczenie: linki do stron piaskownicy w wynikach wskazują na `http://sandbox:4100` (adres wewnątrz sieci kontenerów), więc nie otworzą się w przeglądarce – sama analiza działa.
-
-Testy i kontrola typów:
-```bash
-npm test           # 33 testy: walidacja adresów i identyfikatorów, reguły scoringu, scenariusze end-to-end, baza danych
-# ten sam test bazy na serwerze PostgreSQL (np. z docker compose):
-# DATABASE_URL=postgres://ogar:haslo@127.0.0.1:5432/ogar node --test apps/api/test/store.test.ts
-npm run typecheck
-```
-
-Konfiguracja przez zmienne środowiskowe opisane w [`.env.example`](.env.example). Wszystkie są opcjonalne.
 
 ---
 
-## Scenariusze testowe (dane syntetyczne)
+## Scenariusze testowe
 
-Zgodnie z kryteriami akceptacji scenariusze używają **wyłącznie danych syntetycznych**. Piaskownica (`apps/sandbox`) to lokalny „internet” z fikcyjnymi serwisami: forum, ogłoszenia P2P, profil programisty, publiczny podgląd kanału komunikatora, giveaway w serwisie społecznościowym i archiwum listy mailingowej. E-maile są w domenie `example.com` (RFC 2606). Adresy krypto są **poprawne kryptograficznie, ale wygenerowane z SHA-256** ([`scripts/gen-synthetic-addresses.ts`](apps/api/scripts/gen-synthetic-addresses.ts)), więc nikt nie zna do nich kluczy. Historia transakcji tych adresów pochodzi z [`data/chain-fixtures.json`](apps/api/data/chain-fixtures.json) i jest w UI oznaczona jako syntetyczna.
+Zgodnie z kryteriami akceptacji scenariusze 1–4 działają **wyłącznie na danych syntetycznych**.
 
-Scenariusze uruchamia się jednym kliknięciem w *Nowa analiza → Scenariusze demonstracyjne*. Są też pokryte testami automatycznymi ([`apps/api/test/scenarios.test.ts`](apps/api/test/scenarios.test.ts)).
+**Piaskownica** (`apps/sandbox`) to lokalny, fikcyjny internet: forum, ogłoszenia P2P, profil programisty, strona prywatna, podgląd kanału Telegram, giveaway i archiwum listy mailingowej.
+- E-maile są w domenie `example.com`.
+- Adresy krypto mają poprawne sumy kontrolne, ale są wygenerowane z SHA-256 ([`gen-synthetic-addresses.ts`](apps/api/scripts/gen-synthetic-addresses.ts)), więc nikt nie zna do nich kluczy.
+- Transakcje tych adresów pochodzą z [`chain-fixtures.json`](apps/api/data/chain-fixtures.json) i w UI są oznaczone jako syntetyczne.
 
-| # | Wejście | Co sprawdza | Oczekiwany wynik |
+Każdy scenariusz uruchamiasz jednym kliknięciem w **Nowa analiza → Scenariusze demonstracyjne**. Scenariusze 1–4 sprawdzają też testy automatyczne ([`scenarios.test.ts`](apps/api/test/scenarios.test.ts)).
+
+Każdy scenariusz to **inna osoba, inny typ danych wejściowych i inna umiejętność narzędzia**:
+
+| # | Osoba | Wejście | Co sprawdza |
 |---|---|---|---|
-| 1 | nick `cryptojanek` | pełny przebieg: profil → strona WWW → ogłoszenie P2P → kanał Telegram → lista mailingowa; pivot po e-mailu i Telegramie; grupowanie kont | potwierdzona grupa 5 kont (połączonych odnośnikami, e-mailem i Telegramem); BTC z profilu: **99%** (90 + synergia 4 serwisów, limit 99); ETH z ogłoszenia P2P: **70%** z sygnałami: wpłata na giełdę, kantor, swap na USDT, mikser; TRON z Telegrama: **65%** (70 − pivot); adres z forum: **40%** (50 − R9 „tylko zgodny nick” + R7 transakcje z adresem P2P); giveaway: **10%** (25 − R9); adres Binance i kontrakt USDT: **0% (wykluczenie)**; adres innego użytkownika w wątku: **brak przypisania**; literówka EIP-55: **odrzucona** |
-| 2 | nick `nowak_btc` | odporność na fałszywe trafienia | adres giełdy i zbiórki → 0%, konta niepołączone z niczym → kara R9, żaden adres > 50% |
-| 3 | adres `0xCfE5…ff4A` | wyszukiwanie odwrotne: adres → autor ogłoszenia → kolejne ślady | odkryty nick `cryptojanek` (pivot, kara R10), BTC ≥ 80%; autor wpisu „Uwaga, scam! Nie wysyłajcie na …” **nie** zostaje uznany za właściciela adresu |
-| 4 | nick `cryptojanek`, analiza co 1 min | zmiany w czasie | po przełączeniu okresu w piaskownicy (http://127.0.0.1:4100 → „Przełącz na okres 2”) kolejny przebieg wykazuje **podmianę adresu BTC w profilu** (zakładka *Zmiany w czasie*) |
-| 5 | adres BTC zbiórki rządu Ukrainy | prawdziwe, publiczne API (HN Algolia, Esplora) | dokumenty z HN, wykluczenie (zbiórka), heurystyka dużej aktywności |
+| 1 | Jan Testowy, sprzedawca P2P | nick | pełna ścieżka i łączenie kont z wielu serwisów |
+| 2 | Nowak, „szum” | nick | odporność na fałszywe trafienia |
+| 3 | Ola, skupuje USDT | adres TRON | wyszukiwanie odwrotne: od adresu do osoby |
+| 4 | Marek, programista | URL profilu | monitoring: zmiany w czasie |
+| 5 | instytucja | adres BTC | prawdziwe, publiczne źródła |
 
-> Wyniki scenariuszy 1–4 potwierdzają spójność logiki na danych zaprojektowanych przez autorów, a nie skuteczność na prawdziwym internecie.
+**1. Jan Testowy: pełna ścieżka od nicka.** Wpisujesz `cryptojanek`. OGAR przechodzi przez profil, stronę WWW, ogłoszenie P2P, kanał Telegram i listę mailingową, a po drodze sam znajduje e-mail i Telegram. Spodziewaj się:
+- 5 kont połączonych w jedną osobę,
+- BTC z profilu **99%** (synergia 4 serwisów),
+- ETH z ogłoszenia **70%** (wpłata na giełdę, kantor, zamiana na USDT, mikser),
+- TRON z Telegrama **65%**,
+- adres z forum **40%** i z giveaway **10%** (konta połączone tylko nickiem),
+- Binance i kontrakt USDT **0%**,
+- adres innej osoby w wątku bez przypisania,
+- literówka w adresie ETH odrzucona.
+
+**2. Nowak: fałszywe trafienia.** Wpisujesz `nowak_btc`. Ta osoba wkleja na forum adres giełdy i zbiórki dla Ukrainy oraz komentuje giveaway. Spodziewaj się:
+- giełda i zbiórka **0% (wykluczone)**,
+- konta połączone tylko nickiem z karą,
+- **żaden adres powyżej 50%**.
+
+**3. Ola: od adresu do osoby.** Wpisujesz tylko adres TRON `TUif3i…nCT9`. OGAR znajduje ogłoszenie „Kupię USDT”, ustala autorkę (`ola_wymiana`), potem jej kanał Telegram i drugi adres (ETH). Spodziewaj się:
+- obu adresów na **55%**: przypisane, ale niżej, bo tożsamość ustalono tylko przez wyszukiwanie odwrotne (kara R10),
+- sygnału **wypłaty na kartę krypto-fiat**,
+- autora wpisu „Uwaga, scam! Nie wysyłajcie na …” **nie** uznanego za właściciela adresu, tylko odnotowanego w uwagach.
+
+**4. Marek: monitoring profilu.** Wpisujesz URL profilu `marek_dev`, a analiza powtarza się co minutę. Za pierwszym razem: adres do wsparcia **90%**, bez sygnałów. Potem:
+1. W piaskownicy (http://127.0.0.1:4100) kliknij **„Przełącz na okres 2”**.
+2. Marek podmienia adres, a z nowego wpłaca 0,84 BTC na Binance.
+3. Następny przebieg pokaże w zakładce **Zmiany w czasie** podmianę adresu na stronie i nowy sygnał wyjścia do fiat.
+
+**5. Prawdziwe źródła publiczne.** Adres BTC zbiórki rządu Ukrainy, szukany w Hacker News i sprawdzany w Esplorze (prawdziwe API, wymaga internetu). Spodziewaj się:
+- dokumentów z HN,
+- wykluczenia jako zbiórka,
+- ostrzeżenia o dużej aktywności.
+
+> Scenariusze 1–4 pokazują, że logika jest spójna na danych, które sami zaprojektowaliśmy. Nie mówią, jak skuteczny jest OGAR w prawdziwym internecie (patrz [Ograniczenia](#ograniczenia)).
+
+---
+
+## Przykładowy wynik
+
+Scenariusz 1, wynik prosto z silnika (bez UI):
+
+```
+dokumenty: 7 · identyfikatory: 3 · adresy: 9 · przypisane: 4 · wykluczone: 2 · sygnały cash-out: 5
+
+ 99%  BTC  bc1qpgfd4zxr…  80–99% · BARDZO WYSOKIE PRAWDOPODOBIEŃSTWO  [cash-out: CEX_OUTFLOW]
+ 70%  ETH  0xCfE541F7a2…  60–79% · PRAWDOPODOBNY  [cash-out: CEX_OUTFLOW, OFFRAMP, STABLECOIN_SWAP]
+ 65%  TRX  TXLFKvqCJRzY…  60–79% · PRAWDOPODOBNY  [cash-out: OFFRAMP]
+ 40%  ETH  0x7B431cddF8…  40–59% · ŚREDNI (wymaga potwierdzenia drugim śladem)
+ 10%  ETH  0x18b30Ed558…  10–39% · NISKI / SZUM
+  5%  ETH  0xeCd180Ba67…  <10% · BRAK PRZYPISANIA (adres opublikowany przez inną osobę)
+  5%  ETH  0x149bCE5c44…  <10% · BRAK PRZYPISANIA (adres opublikowany przez inną osobę)
+  0%  ETH  0x28C6c06298…  WYKLUCZONY: E1: Etykieta "Binance 14 (hot wallet)" – Giełda scentralizowana (CEX)
+  0%  ETH  0xdAC17F958D…  WYKLUCZONY: E1: Etykieta "Tether USD (USDT) – kontrakt tokena" – Kontrakt stablecoina
+
+wyliczenie bc1qpgfd4zxr…:
+  R1   +90  Kontekst: oficjalny, autorski profil / strona badanego (K6)
+  R4    +5  Konto zweryfikowane w serwisie
+  R6   +15  Synergia śladów: adres w 4 niezależnych źródłach
+            (kodhub.example, janek-testowy.example, p2p-rynek.example, lista-mailingowa.example)
+  = 99%  (suma 110, ale wskaźnik nigdy nie przekracza 99% – to prawdopodobieństwo, nie pewność)
+```
 
 ---
 
 ## Jak to działa
 
 ```
- identyfikatory wejściowe
+ identyfikatory wejściowe (nick, e-mail, Telegram, URL, adres…)
           │
           ▼
- ┌──────────────────┐  dokumenty (URL, autor, czas, SHA-256)   ┌───────────────────┐
- │ Źródła Web2      │ ───────────────────────────────────────▶ │ Ekstrakcja        │
- │ (registry.ts)    │ ◀─── nowe identyfikatory (pivot, BFS) ── │ adresów + ID      │
- └──────────────────┘                                          └─────────┬─────────┘
-                                                                         ▼
+ ┌──────────────────┐   dokumenty (URL, autor, czas, SHA-256)   ┌───────────────────┐
+ │ Źródła Web2      │ ────────────────────────────────────────▶ │ Wyciąganie adresów│
+ │                  │ ◀── nowe identyfikatory (pivot) ───────── │ i identyfikatorów │
+ └──────────────────┘                                           └─────────┬─────────┘
+                                                                          ▼
                       ┌──────────────────────┐   ┌───────────────────────────────┐
-                      │ Etykiety + on-chain  │◀──│ Przypisanie autorstwa         │
-                      │ Blockscout/Esplora/  │   │ (autor = badany? dokument     │
-                      │ TronGrid             │   │  badanego?) + kontekst        │
+                      │ Etykiety + blockchain│◀──│ Kto opublikował adres?        │
+                      │ (Blockscout, Esplora,│   │ W jakim kontekście?           │
+                      │  TronGrid)           │   │                               │
                       └──────────┬───────────┘   └───────────────────────────────┘
                                  ▼
-          Wskaźnik Pewności → chronologia → wnioski → raport / JSON / CSV
+          Wskaźnik Pewności → przepływ środków → wnioski → raport / JSON / CSV
 ```
 
-1. **Wyszukiwanie (BFS).** Każde źródło deklaruje, jakie typy identyfikatorów obsługuje. Dokumenty są deduplikowane po URL.
-2. **Pivot.** Identyfikatory ujawnione w dokumentach **należących do badanego** trafiają do kolejki z głębokością +1: pola profilu (blog, e-mail, X), e-maile, `t.me/…` lub `Telegram: @nick`, telefony z jawnym prefiksem (`+48`, `tel.`), linki do profili. Podobnie wypowiedzi badanego w cudzych wątkach. Przy wejściu typu adres autor publikacji zawierającej ten adres staje się nowym identyfikatorem (wyszukiwanie odwrotne, kara R10) – **chyba że** wypowiedź ostrzega przed adresem („scam”, „nie wysyłajcie”, „oszust”), bo wtedy autor tylko go cytuje. Strony WWW ujawnione w pivocie na hostach spoza białej listy **nie są pobierane** – trafiają na listę do zatwierdzenia przez analityka.
-3. **Ekstrakcja adresów.** Regex wybiera kandydatów, a następnie każdy przechodzi **walidację sumy kontrolnej**:
-   - BTC/LTC/DOGE/TRON: Base58Check (podwójny SHA-256) + bajt wersji,
-   - SegWit/Taproot: Bech32 (BIP-173) / Bech32m (BIP-350) z kontrolą wersji i długości programu,
-   - Ethereum/EVM: EIP-55 (keccak-256). Mieszana wielkość liter z błędną sumą oznacza odrzucenie (literówka lub podróbka),
-   - Solana: tylko ze słowem kluczowym w kontekście (brak sumy kontrolnej). Monero: rozpoznanie po formacie.
+Krok po kroku:
 
-   Hashe transakcji (64 hex), adres zerowy i ciągi z błędną sumą są odrzucane. Odrzuceni kandydaci są widoczni w raporcie wraz z powodem.
-4. **Przypisanie autorstwa.** Każde wystąpienie adresu ma autora: autora fragmentu (posta, komentarza) albo właściciela dokumentu. Adres jest przypisany badanemu, gdy autor zgadza się z identyfikatorem badanego (dokładnie / po normalizacji / częściowo) albo dokument należy do badanego. Adres wklejony przez inną osobę w tym samym wątku **nie jest przypisywany**.
-5. **Tożsamość kont** ([`engine/identity.ts`](apps/api/src/engine/identity.ts)). Ten sam nick w dwóch serwisach **nie oznacza** tej samej osoby. Konta (serwis + nick) łączymy w grupy wyłącznie twardymi powiązaniami: jawny odnośnik (profil → strona WWW, ogłoszenie → `t.me/…`), wspólny e-mail/Telegram/telefon, dowód Keybase albo identyfikator z danych wejściowych. Potwierdzona jest grupa zakotwiczona w danych wejściowych, a przy samym nicku – największa grupa ≥ 2 kont z tym nickiem. Konto połączone z badanym tylko zgodnością nicku dostaje karę **R9**. Najlepszą kotwicą jest URL konkretnego profilu, e-mail lub Telegram.
-6. **Kontekst publikacji.** Reguły K1–K8 klasyfikują kontekst według załącznika: profil, ogłoszenie, komunikator, stopka e-mail, forum, giveaway. Ogłoszenie wymaga wyrażenia oferty („sprzedam”, „kupię”, „oferta”, „WTS”) **i** słowa płatności – samo „cena”/„kurs”/„PLN” nie wystarcza. Stopka e-mail tylko w dokumentach będących wiadomością e-mail.
-7. **On-chain i etykiety.** Patrz niżej.
-8. **Wynik.** Wskaźnik Pewności, chronologia przepływu środków, wnioski do weryfikacji, wykryte podmiany adresów.
+1. **Szukanie.** OGAR pyta każde włączone źródło o każdy identyfikator, który to źródło obsługuje. Ten sam URL jest analizowany tylko raz.
 
----
+2. **Pivot, czyli „idź dalej”.** Jeśli w dokumencie **należącym do badanego** pojawi się nowy identyfikator, OGAR szuka także po nim, o jeden krok głębiej. Takim identyfikatorem może być:
+   - e-mail, `t.me/…`, „Telegram: @nick”,
+   - telefon z prefiksem (`+48`, `tel.`),
+   - link do innego profilu.
 
-## Parametry wyszukiwania
+   Przy wejściu typu adres działa to odwrotnie: autor publikacji z tym adresem staje się nowym tropem. Wyjątek to autor, który przed adresem ostrzega („scam”, „nie wysyłajcie”), bo on tylko go cytuje. Strony z nieznanych hostów **nie są pobierane automatycznie**. Analityk musi je najpierw zatwierdzić.
 
-| Parametr | Domyślnie | Opis |
-|---|---|---|
-| Identyfikatory wejściowe | – | nick/login, e-mail, Telegram, komunikator, imię i nazwisko, profil (URL), strona WWW, telefon, adres krypto. Można podać kilka naraz |
-| Źródła | `github`, `keybase`, `gravatar`, `hackernews`, `web`, `wayback` | dodatkowo: `reddit` (obecnie 403 – wymaga OAuth), `searxng` (wymaga własnej instancji), `sandbox` (syntetyczne) |
-| Zatwierdzone hosty | brak | hosty stron ujawnionych w pivocie, zatwierdzone przez analityka w UI (zapisywane w audycie) |
-| Głębokość pivotu | 2 | 0 = tylko dane wejściowe; każdy krok obniża wynik o 5 pkt (R2) |
-| Limit dokumentów | 120 | ochrona przed „rozlaniem się” analizy |
-| Analiza on-chain | tak | maks. 25 adresów na przebieg, priorytet dla przypisanych badanemu |
-| Próg stablecoinów | 1000 USD | od tej kwoty swap na stablecoin jest sygnałem cash-out |
-| AI | wyłączone | tylko sugestia kategorii kontekstu, **nie zmienia wyniku** |
-| Analiza cykliczna | ręcznie | 1 min (demo), godzina, doba, tydzień – harmonogram w backendzie |
+3. **Wyciąganie adresów.** Wyrażenia regularne znajdują kandydatów, a potem każdy przechodzi kontrolę sumy kontrolnej:
 
-Zapytania wykonywane przez źródła:
+   | Sieć | Kontrola |
+   |---|---|
+   | BTC, LTC, DOGE, TRON | Base58Check (podwójny SHA-256) i bajt wersji |
+   | SegWit, Taproot | Bech32 (BIP-173) / Bech32m (BIP-350) |
+   | Ethereum / EVM | EIP-55 (keccak-256): mieszana wielkość liter z błędną sumą oznacza odrzucenie |
+   | Solana | tylko ze słowem kluczowym obok (brak sumy kontrolnej) |
+   | Monero | po formacie |
 
-| Źródło | Typ identyfikatora | Zapytanie |
-|---|---|---|
-| GitHub | nick, e-mail, imię i nazwisko, URL profilu | `GET /users/{nick}`, README profilu, gisty; `search/users?q={email} in:email`, `"{name}" in:name` (kandydaci – możliwe homonimy) |
-| Keybase | nick, URL profilu | `user/lookup.json?usernames=…&github=…&reddit=…&hackernews=…` – dowody tożsamości i **podpisane** `cryptocurrency_addresses` |
-| Gravatar | e-mail | profil po `sha256(e-mail)` (v3) lub `md5` (legacy) – portfele krypto, zweryfikowane konta |
-| Reddit | nick, adres | `/user/{nick}/about|comments|submitted.json`, `search.json?q={adres}` |
-| Hacker News | nick, adres | Algolia: `/users/{nick}`, komentarze autora, wyszukiwanie pełnotekstowe adresu |
-| WWW | URL | pobranie strony wskazanej przez analityka lub ujawnionej w profilu badanego |
-| Wayback Machine | URL | CDX API – do 4 różnych archiwalnych wersji strony (zmiany adresów w czasie) |
-| SearXNG | nick, e-mail, nazwa, Telegram, adres, telefon | `/search?q="…"&format=json` na **własnej** instancji (on-premise) |
-| Piaskownica | wszystkie | lokalna wyszukiwarka pełnotekstowa fikcyjnych stron |
+   Hashe transakcji, adres zerowy i adresy z błędną sumą są odrzucane, a powód widać w raporcie.
+
+4. **Kto opublikował adres.** Każde wystąpienie ma autora: autora posta albo właściciela strony. Adres jest przypisany badanemu tylko wtedy, gdy autorem jest badany. Adres wklejony przez kogoś innego w tym samym wątku **nie jest mu przypisywany**.
+
+5. **Czy to ta sama osoba** ([`identity.ts`](apps/api/src/engine/identity.ts)). Ten sam nick w dwóch serwisach **nie oznacza** tej samej osoby. Konta łączymy tylko twardymi dowodami:
+   - jawnym odnośnikiem między nimi,
+   - wspólnym e-mailem, Telegramem albo telefonem,
+   - dowodem Keybase.
+
+   Konto połączone z badanym samym nickiem dostaje karę (R9).
+
+6. **Kontekst.** Reguły K1–K8 rozpoznają, gdzie pojawił się adres: profil, ogłoszenie, komunikator, stopka e-mail, forum czy giveaway. Ogłoszenie wymaga słowa oferty („sprzedam”, „kupię”, „WTS”) **i** słowa płatności, bo samo „cena” czy „PLN” nie wystarcza.
+
+7. **Blockchain i etykiety.** Patrz [On-chain i wyjście do fiat](#on-chain-i-wyjście-do-fiat).
+
+8. **Wynik.** Wskaźnik Pewności, chronologia przepływu środków, wnioski do weryfikacji i wykryte podmiany adresów.
 
 ---
 
-## Wskaźnik Pewności – algorytm
+## Wskaźnik Pewności
 
-Wynik to **prawdopodobieństwo, że adres należy do badanej osoby**. Liczy go wyłącznie kod regułowy ([`scoring/confidence.ts`](apps/api/src/scoring/confidence.ts)), więc ten sam materiał zawsze daje ten sam wynik. Każda składowa jest nazwaną regułą z odnośnikiem do dowodu, widoczną w UI i raporcie.
+Wskaźnik mówi, **jak bardzo prawdopodobne jest, że adres należy do badanej osoby**. Liczy go wyłącznie kod regułowy ([`confidence.ts`](apps/api/src/scoring/confidence.ts)), więc ten sam materiał zawsze daje ten sam wynik. Każdy składnik to nazwana reguła z linkiem do dowodu, widoczna w UI i w raporcie.
 
-**Wartość bazowa: kontekst publikacji** (reguły K1–K8, [`scoring/context.ts`](apps/api/src/scoring/context.ts)):
+**Punkt wyjścia: gdzie opublikowano adres** (reguły K1–K8, [`context.ts`](apps/api/src/scoring/context.ts)):
 
 | Kontekst | Baza | Przedział |
 |---|---|---|
-| Oficjalny, autorski profil / strona badanego | 90 | 80–99% bardzo wysokie |
+| Oficjalny profil / strona badanego | 90 | 80–99% bardzo wysokie |
 | Ogłoszenie sprzedaży / oferta P2P | 70 | 60–79% prawdopodobne |
-| Komunikator – kontekst rozliczenia | 70 | 60–79% |
+| Komunikator, kontekst rozliczenia | 70 | 60–79% |
 | Stopka e-mail | 65 | 60–79% |
-| Dyskusja na forum / grupie | 50 | 40–59% średnie (wymaga drugiego śladu) |
+| Dyskusja na forum / w grupie | 50 | 40–59% średnie (potrzebny drugi ślad) |
 | Masowe komentarze (giveaway, konkurs) | 25 | 10–39% niskie / szum |
 | Adres opublikowany przez inną osobę | 5 | brak przypisania |
 | Giełda, kontrakt, mikser, zbiórka, kantor | **0** | wykluczenie |
 
-**Modyfikatory** (wynik = najlepszy dowód + premie − kary, ograniczony do 0–99 – to prawdopodobieństwo, nigdy pewność):
+**Premie i kary.** Wynik to najlepszy dowód plus premie minus kary, w granicach 0–99%:
 
-| Reguła | Opis | Wartość |
+| Reguła | Kiedy | Wartość |
 |---|---|---|
-| R6 | **Synergia śladów** – adres w ≥ 2 niezależnych serwisach (różne domeny). Wielokrotne wystąpienie w jednym serwisie nie podnosi wyniku | +15 |
-| R7 | Bezpośrednie transakcje z innym adresem badanego o wyniku ≥ 60% | +5 |
-| R4 | Adres w polu strukturalnym profilu (podpisany w Keybase, portfel w Gravatar) lub konto zweryfikowane | +5 |
-| R2 | Autor ustalony przez pivot – za każdy krok (maks. 15) | −5 |
-| R3a / R3b | Nick zgodny po normalizacji / tylko częściowo | −5 / −15 |
+| R6 | **Synergia śladów:** adres w ≥ 2 niezależnych serwisach (różne domeny). Wiele wystąpień w jednym serwisie się nie liczy | +15 |
+| R7 | Transakcje z innym adresem badanego o wyniku ≥ 60% | +5 |
+| R4 | Adres w polu profilu (podpisany w Keybase, portfel w Gravatar) lub konto zweryfikowane | +5 |
+| R2 | Autor znaleziony przez pivot, za każdy krok (maks. −15) | −5 |
+| R3a / R3b | Nick zgodny dopiero po normalizacji / tylko częściowo | −5 / −15 |
 | R5 | Adres tylko w archiwalnej wersji strony | −10 |
-| R8 | ≥ 5000 transakcji – profil usługi, a nie osoby | −20 |
-| R9 | Konto połączone z badanym **tylko zgodnością nicku** – brak odnośnika i wspólnego kontaktu z innymi kontami badanego | −15 |
-| R10 | Tożsamość autora wywnioskowana wyłącznie z publikacji adresu wejściowego (wyszukiwanie odwrotne) | −10 |
+| R8 | ≥ 5000 transakcji, czyli raczej usługa niż osoba | −20 |
+| R9 | Konto łączy z badanym **tylko zgodny nick** | −15 |
+| R10 | Autora ustalono wyłącznie przez wyszukiwanie odwrotne adresu | −10 |
 
-Przykłady ze scenariusza 1:
-- BTC z profilu: `R1 oficjalny profil 90 + R4 konto zweryfikowane 5 + R6 synergia (kodhub, strona WWW, ogłoszenie P2P, lista mailingowa) 15 = 110 → 99%`,
-- ETH z forum: `R1 forum 50 − R9 konto na forum łączy z badanym tylko nick 15 + R7 transakcje z adresem z ogłoszenia 5 = 40%`.
+Za próg przypisania badanemu przyjmujemy **40%** (przedział „średni” i wyżej).
+
+Przykład ze scenariusza 1, adres ETH z forum: `R1 forum 50 − R9 konto łączy z badanym tylko nick 15 + R7 transakcje z adresem z ogłoszenia 5 = 40%`.
 
 ---
 
 ## Odrzucanie fałszywych trafień
 
-- **E1 – etykiety.** Lista startowa [`data/labels.json`](apps/api/data/labels.json) (Binance, Coinbase, Kraken, Bitfinex, Tornado Cash, routery Uniswap/1inch, kontrakty USDT/USDC/DAI/WETH, zbiórki), etykiety analityka dodawane w UI oraz etykiety eksploratora (Blockscout `metadata.tags`, Tronscan `addressTag`), mapowane na kategorie słownikiem.
-- **E2 – smart kontrakt.** Blockscout `is_contract` (bytecode ≠ 0x), TronGrid `type = Contract`.
-- **Autor ≠ badany** – adres nie jest przypisany (R0).
-- **Walidacja sum kontrolnych** – literówki i podróbki adresów są odrzucane.
-- **Heurystyka R8** – adres o bardzo dużej liczbie transakcji jest oznaczany jako możliwa usługa.
+- **E1: etykiety.** Startowa lista [`labels.json`](apps/api/data/labels.json) (Binance, Coinbase, Kraken, Tornado Cash, Uniswap, USDT/USDC i inne), etykiety dodane przez analityka w UI oraz tagi z eksploratorów (Blockscout, Tronscan).
+- **E2: smart kontrakt.** Blockscout `is_contract` (bytecode ≠ 0x), TronGrid `type = Contract`.
+- **Autor to nie badany:** adres nie jest przypisywany.
+- **Błędna suma kontrolna:** literówki i podróbki są odrzucane.
+- **R8, duża aktywność:** adres z tysiącami transakcji jest oznaczany jako prawdopodobna usługa.
 
-Wykluczony adres **nie znika z raportu**. Odnotowany jest fakt interakcji, np. „badany wysyłał środki na adres Binance”, wraz z zaleceniem zapytania do giełdy.
+Wykluczony adres **nie znika z raportu**. OGAR odnotowuje interakcję, np. „badany wysyłał środki na adres Binance”, i podpowiada, że warto zapytać giełdę.
 
 ---
 
-## Wskaźniki on-chain i Fiat Cash-Out
+## On-chain i wyjście do fiat
 
-Dostawcy (bez kluczy API): **Blockscout v2** (Ethereum: saldo, licznik tx, transakcje, transfery ERC-20, etykiety), **Esplora/Blockstream** (Bitcoin: statystyki, ostatnie transakcje), **TronGrid** (TRON: konto, transfery TRC-20). Cache w bazie służy wyłącznie deduplikacji zapytań **w ramach jednego przebiegu** – każdy kolejny (także cykliczny) przebieg pobiera dane na nowo. Sumy wolumenu: dla BTC z pełnych statystyk Esplory, dla ETH i TRON **tylko z pobranej próbki** (UI i raport to oznaczają).
+OGAR korzysta z publicznych eksploratorów bez kluczy API:
+- **Blockscout** (Ethereum): saldo, transakcje, transfery tokenów, etykiety,
+- **Esplora / Blockstream** (Bitcoin),
+- **TronGrid** (TRON).
 
-| Kod | Znaczenie | Cash-out |
+Każdy przebieg pobiera dane na nowo. Cache działa tylko w obrębie jednego przebiegu.
+
+| Kod | Co oznacza | Wyjście do fiat |
 |---|---|---|
-| `CEX_OUTFLOW` | wpłata na giełdę scentralizowaną (zwykle poprzedza sprzedaż za fiat; KYC u giełdy) | ✔ |
-| `OFFRAMP` | interakcja z kantorem / bramką krypto-fiat / kartą / P2P | ✔ |
-| `STABLECOIN_SWAP` | swap na stablecoin przez DEX w tej samej transakcji (≥ próg) | ✔ |
-| `STABLECOIN_FLOW` | znaczne przepływy stablecoinów | – |
-| `MIXER` | interakcja z mikserem (zacieranie pochodzenia) | – |
-| `LINKED_ADDRESS` | transakcje z innym adresem przypisanym badanemu | – |
+| `CEX_OUTFLOW` | wpłata na giełdę (zwykle przed sprzedażą; giełda zna klienta, KYC) | ✔ |
+| `OFFRAMP` | kantor, bramka krypto-fiat, karta, P2P | ✔ |
+| `STABLECOIN_SWAP` | zamiana na stablecoin przez DEX (od 1000 USD) | ✔ |
+| `STABLECOIN_FLOW` | duże przepływy stablecoinów | – |
+| `MIXER` | mikser (zacieranie pochodzenia) | – |
+| `LINKED_ADDRESS` | transakcje z innym adresem badanego | – |
 | `CEX_INFLOW`, `DEX_SWAP`, `NO_ACTIVITY`, `HIGH_ACTIVITY`, `DATA_LIMIT` | informacyjne | – |
 
-Każdy wskaźnik wskazuje konkretne hashe transakcji. Zakładka *Przepływ środków* pokazuje chronologię wszystkich transakcji adresów przypisanych badanemu i podświetla te, które mogą oznaczać wyjście do fiat.
+Każdy sygnał wskazuje konkretne transakcje. Zakładka **Przepływ środków** pokazuje je w kolejności czasu i podświetla te, które mogą oznaczać wyjście do fiat.
 
 ---
 
 ## Raport
 
-`GET /api/runs/{id}/report.html` (przycisk *Raport*; drukowanie lub zapis do PDF z przeglądarki):
+Przycisk **Raport OSINT** (`GET /api/runs/{id}/report.html`) otwiera raport do druku lub zapisu jako PDF. Raport ma osiem części:
 
 1. Parametry wyszukiwania i konfiguracja
-2. Podsumowanie liczbowe
-3. **Fakty źródłowe** – dla każdego adresu: URL, serwis, autor, data publikacji, data pobrania, fragment tekstu, podstawa przypisania
-4. **Wyniki obliczeń** – rozpisany Wskaźnik Pewności (reguła po regule) i statystyki on-chain z oznaczeniem dostawcy
+2. Podsumowanie w liczbach
+3. **Fakty źródłowe:** dla każdego adresu URL, serwis, autor, data publikacji i pobrania, cytat, podstawa przypisania
+4. **Wyniki obliczeń:** Wskaźnik Pewności reguła po regule i dane on-chain z nazwą dostawcy
 5. **Chronologia przepływu środków**
-6. **Wnioski wymagające dalszej weryfikacji** – każdy z podstawą i wskazaniem, co sprawdzić
+6. **Wnioski do weryfikacji:** każdy z uzasadnieniem i wskazaniem, co sprawdzić
 7. Ścieżka identyfikatorów (pivot)
-8. **Metadane do odtworzenia analizy** – SHA-256 każdego dokumentu (pełna treść zapisana w bazie), odrzuceni kandydaci, parametry algorytmu, rejestr wszystkich zapytań sieciowych
+8. **Dane do odtworzenia analizy:**
+   - SHA-256 każdego dokumentu (pełna treść jest w bazie),
+   - odrzuceni kandydaci,
+   - parametry algorytmu,
+   - rejestr zapytań.
 
-Eksport: `export.json` (pełny wynik) i `export.csv` (adresy; separator `;`, UTF-8 BOM dla Excela).
+Eksport do JSON (pełny wynik) i CSV (adresy; separator `;`, kodowanie zgodne z Excelem) jest w menu **⋯** analizy.
+
+---
+
+## Parametry wyszukiwania i źródła
+
+| Parametr | Domyślnie | Opis |
+|---|---|---|
+| Identyfikatory wejściowe | – | nick, e-mail, Telegram, komunikator, imię i nazwisko, profil (URL), strona WWW, telefon, adres krypto. Można podać kilka naraz |
+| Źródła | GitHub, Keybase, Gravatar, Hacker News, WWW, Wayback | dodatkowo Reddit (dziś zwraca 403), SearXNG (własna instancja), piaskownica |
+| Głębokość pivotu | 2 | 0 = tylko dane wejściowe. Każdy krok obniża wynik o 5 pkt (R2) |
+| Limit dokumentów | 120 | żeby analiza się „nie rozlała” |
+| Analiza on-chain | tak | maks. 25 adresów na przebieg, najpierw przypisane badanemu |
+| AI | wyłączone | tylko podpowiedź kategorii, **nie zmienia wyniku** |
+| Analiza cykliczna | ręcznie | co 1 min (demo), godzinę, dzień, tydzień |
+
+Co dokładnie pyta każde źródło:
+
+| Źródło | Szuka po | Zapytanie |
+|---|---|---|
+| GitHub | nick, e-mail, imię i nazwisko, URL | profil, README profilu, gisty; wyszukiwanie użytkownika po e-mailu i nazwie |
+| Keybase | nick, URL | dowody tożsamości i **podpisane** adresy krypto |
+| Gravatar | e-mail | profil po hashu e-maila: portfele, zweryfikowane konta |
+| Hacker News | nick, adres | profil, komentarze, wyszukiwanie adresu (Algolia) |
+| Reddit | nick, adres | profil, komentarze, wyszukiwanie adresu |
+| WWW | URL | strona podana przez analityka albo ujawniona w profilu badanego |
+| Wayback Machine | URL | do 4 archiwalnych wersji strony (zmiany w czasie) |
+| SearXNG | nick, e-mail, nazwa, Telegram, adres, telefon | wyszukiwanie na **własnej** instancji |
+| Piaskownica | wszystko | wyszukiwarka po fikcyjnych stronach |
+
+Wszystkie ustawienia serwera (porty, źródła, biała lista, AI) są opisane w [`.env.example`](.env.example). Żadne nie jest wymagane.
+
+---
+
+## AI (opcjonalnie)
+
+Moduł AI **jest domyślnie wyłączony i nie zmienia Wskaźnika Pewności**. Gdy reguły nie rozpoznały kontekstu (K8, „dyskusja”), model podpowiada, czym może być ten wpis, np. „ogłoszenie sprzedaży”. Podpowiedź jest pokazana obok reguły jako pomocnicza, więc wynik zostaje wyjaśnialny i powtarzalny.
+
+**Jak włączyć** (przetestowane z [Ollamą](https://ollama.com/download) i modelem `qwen2.5:3b`, ~2 GB, działa na samym CPU):
+
+1. `ollama pull qwen2.5:3b`
+2. Skopiuj `.env.example` do `.env` i zmień `AI_PROVIDER=none` na `AI_PROVIDER=openai-compatible`.
+3. Uruchom ponownie `npm run dev`. Pasek boczny pokaże „AI: qwen2.5:3b”.
+4. W **Nowa analiza** zaznacz „AI”. Podpowiedzi zobaczysz w szczegółach adresu (np. adres z forum w scenariuszu 1), a wywołania modelu w rejestrze zapytań.
+
+Kilka szczegółów:
+- **Zmiana modelu:** wystarczy zmienić `AI_BASE_URL` i `AI_MODEL`. Działa każdy serwer zgodny z OpenAI Chat Completions: Ollama, vLLM, LM Studio, llama.cpp.
+- **Limity:** najwyżej 10 wywołań na przebieg, 20 s na każde. Gdy model nie odpowie, analiza i tak idzie dalej.
+- **Prompt injection:** treść z internetu trafia do modelu jako dane, a instrukcja systemowa każe ignorować zawarte w niej polecenia.
+
+---
+
+## Inne sposoby uruchomienia
+
+**Wersja produkcyjna w jednym procesie** (API serwuje zbudowany frontend na http://127.0.0.1:8080):
+
+```bash
+npm run sandbox &   # tylko jeśli chcesz scenariusze testowe
+npm start
+```
+
+**Docker z serwerem PostgreSQL 17** (przetestowane: scenariusz 1 od początku do końca, dane przetrwały restart):
+
+```bash
+docker compose up --build   # postgres + API :8080 + piaskownica :4100
+```
+
+- Hasło bazy domyślnie to `ogar_lokalnie`. Poza demem ustaw `POSTGRES_PASSWORD`.
+- Port bazy nie wychodzi poza sieć kontenerów.
+- Linki do stron piaskownicy w wynikach wskazują `http://sandbox:4100`, czyli adres wewnątrz Dockera, więc nie otworzą się w przeglądarce. Sama analiza działa.
+
+**Docker z AI:** odkomentuj w `docker-compose.yml` usługę `ollama`, wolumen `ollama` i zmienne `AI_*`, a po starcie wpisz `docker compose exec ollama ollama pull qwen2.5:3b`. Przetestowane: odpowiedź modelu w ~3 s na CPU.
+
+**Własny serwer PostgreSQL:** ustaw `DATABASE_URL=postgres://…`. Schemat i zapytania są te same co w trybie wbudowanym. Ten sam test bazy przechodzi w obu trybach:
+
+```bash
+DATABASE_URL=postgres://ogar:haslo@127.0.0.1:5432/ogar node --test apps/api/test/store.test.ts
+```
 
 ---
 
 ## Architektura
 
-Monorepo (npm workspaces):
+Jedno repozytorium (npm workspaces), trzy aplikacje:
 
 ```
 apps/
-  api/                 Node.js 24 + TypeScript (natywne uruchamianie, bez kroku build), Fastify 5
+  api/        Node.js + TypeScript (bez kroku kompilacji), Fastify 5
     src/
-      extract/         walidacja adresów (encoding.ts: Base58Check, Bech32/m, EIP-55) + identyfikatory
-      sources/         źródła Web2 – wspólny interfejs Source + registry.ts
-      chain/           dostawcy blockchain, etykiety, wskaźniki on-chain
-      scoring/         kontekst publikacji (K1–K8) + Wskaźnik Pewności (R0–R8, E1–E2)
-      engine/          investigate.ts (BFS/pivot/przypisanie/wnioski), identity.ts (grupy kont),
-                       store.ts (przebiegi, harmonogram, porównania)
-      ai/              wymienny dostawca AI (API zgodne z OpenAI, domyślnie wyłączony)
-      report/          raport HTML
-      http/fetcher.ts  jedyny punkt wyjścia do sieci: biała lista, limit tempa, cache, log
-      db/              PostgreSQL: serwer (pg, DATABASE_URL) lub wbudowany (PGlite) – te same zapytania
-    data/              labels.json, chain-fixtures.json (syntetyczne)
-    test/              node:test – 33 testy
-  web/                 React 19 + Vite
-  sandbox/             syntetyczny "internet" do scenariuszy testowych
+      extract/      wyciąganie i walidacja adresów (Base58Check, Bech32/m, EIP-55) oraz identyfikatorów
+      sources/      źródła Web2 – wspólny interfejs Source + rejestr (registry.ts)
+      chain/        dostawcy blockchain, etykiety, wskaźniki on-chain
+      scoring/      kontekst publikacji (K1–K8) i Wskaźnik Pewności (R1–R10, E1–E2)
+      engine/       investigate.ts – przebieg analizy; identity.ts – łączenie kont;
+                    store.ts – sprawy, przebiegi, harmonogram, porównania, kosz
+      ai/           wymienny dostawca AI (API zgodne z OpenAI)
+      report/       raport HTML
+      http/         fetcher.ts – jedyne wyjście do sieci: biała lista, limit tempa, cache, rejestr
+      db/           PostgreSQL: serwer (pg) albo wbudowany (PGlite) – te same zapytania
+    data/       labels.json (etykiety startowe), chain-fixtures.json (transakcje syntetyczne)
+    test/       35 testów (node:test)
+  web/        React 19 + Vite – interfejs analityka
+  sandbox/    fikcyjny internet do scenariuszy testowych
 ```
 
-Model danych (PostgreSQL, [`db/db.ts`](apps/api/src/db/db.ts)): `investigations` (sprawa; identyfikatory i parametry w `JSONB`, harmonogram, zatwierdzone hosty) → `runs` (przebieg; pełny wynik w `JSONB`, numer przebiegu unikalny w sprawie) → `documents` (treść + SHA-256 każdego pobranego dokumentu) oraz `http_cache`, `chain_cache`, `custom_labels`, `audit_log` (`BIGSERIAL`). Klucze obce z `ON DELETE CASCADE` – usunięcie sprawy usuwa jej przebiegi i dokumenty. Lista spraw liczy statystyki i najwyższy wynik bezpośrednio w bazie (`jsonb_array_elements`), bez przesyłania pełnych wyników. Harmonogram przesuwa termin atomowo (`UPDATE … RETURNING`), więc przy kilku instancjach API przebieg nie uruchomi się podwójnie.
+**Model danych** ([`db.ts`](apps/api/src/db/db.ts)):
+- `investigations`: sprawa, czyli identyfikatory, parametry i harmonogram,
+- `runs`: przebieg z pełnym wynikiem w `JSONB`,
+- `documents`: treść i SHA-256 każdego pobranego dokumentu,
+- pomocnicze: `http_cache`, `chain_cache`, `custom_labels`, `audit_log`.
 
-**Wymiana modelu AI** odbywa się wyłącznie przez konfigurację (`AI_BASE_URL`, `AI_MODEL`). Działa z każdym serwerem zgodnym z OpenAI Chat Completions: Ollama, vLLM, LM Studio, llama.cpp server. Przetestowano z lokalną Ollamą i modelem `qwen2.5:3b` (~2 GB, odpowiedź < 1 s na zapytanie, bez GPU) na scenariuszu 1:
+Usunięcie sprawy kasuje kaskadowo jej przebiegi i dokumenty. Najpierw sprawa trafia na 30 dni do kosza. Harmonogram rezerwuje przebieg atomowo, więc przy kilku instancjach API analiza nie uruchomi się dwa razy.
 
-```bash
-ollama pull qwen2.5:3b
-# .env: AI_PROVIDER=openai-compatible, AI_BASE_URL=http://127.0.0.1:11434/v1, AI_MODEL=qwen2.5:3b
-npm run dev        # pasek górny: „AI: qwen2.5:3b”; w formularzu analizy zaznacz AI
-```
+**API REST** (wszystkie ścieżki pod `/api`):
 
-Na żądanie AI jest wywoływane maksymalnie 10 razy na przebieg, z limitem 20 s; każde wywołanie trafia do logu zapytań, a brak odpowiedzi nie przerywa analizy. AI wyłącznie **proponuje** kategorię kontekstu dla przypadków, w których reguły dały wynik domyślny (K8). Propozycja jest pokazywana obok reguły i nie zmienia wyniku, więc rezultat pozostaje wyjaśnialny i odtwarzalny. Treść analizowana trafia do modelu jako dane w roli `user`, a instrukcja systemowa nakazuje ignorować polecenia z treści (ochrona przed prompt injection).
-
-**Docelowo w środowisku KAS:** serwer PostgreSQL w infrastrukturze KAS (`DATABASE_URL`), lokalny model AI, SearXNG on-premise jako metawyszukiwarka, SSO przed API (`API_TOKEN` to tylko zabezpieczenie prototypu), kolejka zadań (np. BullMQ/RabbitMQ) przy wielu analitykach.
-
----
-
-## API REST
-
-| Metoda | Ścieżka | Opis |
+| Metoda | Ścieżka | Do czego |
 |---|---|---|
-| GET | `/api/meta` | źródła, typy identyfikatorów, parametry scoringu, konfiguracja |
-| GET / POST | `/api/investigations` | lista / utworzenie analizy (`{name, caseRef?, seeds[], options?, scheduleMinutes?, runNow?}`) |
-| GET / DELETE | `/api/investigations/{id}` | szczegóły z listą przebiegów / usunięcie |
-| PUT | `/api/investigations/{id}/schedule` | harmonogram `{minutes}` |
-| POST | `/api/investigations/{id}/approved-hosts` | zatwierdzenie hosta strony z pivotu `{host}` |
-| POST | `/api/login` | ustawienie ciasteczka z tokenem (gdy `API_TOKEN`) |
-| POST | `/api/investigations/{id}/runs` | nowy przebieg |
-| GET | `/api/runs/{id}` | pełny wynik przebiegu |
-| GET | `/api/runs/{id}/report.html` · `export.json` · `export.csv` | raport i eksport |
-| GET | `/api/runs/{id}/documents/{docId}` | zapisana treść dokumentu |
-| GET | `/api/compare?a={runId}&b={runId}` | porównanie dwóch przebiegów |
-| GET / POST | `/api/labels` | etykiety adresów |
-| POST | `/api/extract` | ekstrakcja adresów i identyfikatorów z tekstu |
-| GET | `/api/audit` | dziennik zdarzeń (utworzenia, przebiegi, eksporty) |
+| GET | `/meta` | źródła, typy identyfikatorów, parametry punktacji, konfiguracja |
+| GET / POST | `/investigations` | lista spraw / nowa sprawa |
+| GET / PUT / DELETE | `/investigations/{id}` | szczegóły z przebiegami / poprawa parametrów / do kosza |
+| POST | `/investigations/{id}/runs` | nowy przebieg |
+| PUT | `/investigations/{id}/schedule` | harmonogram `{minutes}` |
+| POST | `/investigations/{id}/approved-hosts` | zatwierdzenie hosta strony z pivotu |
+| GET | `/runs/{id}` | pełny wynik przebiegu |
+| POST | `/runs/{id}/invalidate` · `/revalidate` | oznaczenie przebiegu jako błędny / cofnięcie |
+| GET | `/runs/{id}/report.html` · `export.json` · `export.csv` | raport i eksport |
+| GET | `/runs/{id}/documents/{docId}` | zapisana treść dokumentu |
+| GET | `/compare?a={runId}&b={runId}` | porównanie dwóch przebiegów |
+| GET / POST / DELETE | `/trash`, `/trash/{id}/restore`, `/trash/{id}` | kosz |
+| GET / POST | `/labels` | etykiety adresów |
+| POST | `/extract` | wyciągnięcie adresów i identyfikatorów z wklejonego tekstu |
+| GET | `/audit` | dziennik zdarzeń |
+| POST | `/login` | logowanie tokenem (gdy ustawiony `API_TOKEN`) |
+
+**Docelowo w KAS:**
+- serwer PostgreSQL w infrastrukturze KAS,
+- lokalny model AI,
+- własna instancja SearXNG jako wyszukiwarka,
+- logowanie przez SSO KAS przed API (`API_TOKEN` to tylko zabezpieczenie prototypu),
+- kolejka zadań przy wielu analitykach.
 
 ---
 
-## Bezpieczeństwo i zgodność
+## Bezpieczeństwo
 
-- **Biała lista hostów** ([`config.ts`](apps/api/src/config.ts)). Każde zapytanie przechodzi przez [`http/fetcher.ts`](apps/api/src/http/fetcher.ts); przekierowanie poza listę jest blokowane. Dane testowe i wyniki nie są wysyłane do niezatwierdzonych usług. AI jest domyślnie wyłączone.
-- **Zgoda na host obowiązuje tylko w danym przebiegu** (AsyncLocalStorage – nie „przecieka” do innych analiz). Strona podana wprost przez analityka jest pobierana; strona ujawniona w pivocie na nieznanym hoście – dopiero po zatwierdzeniu hosta w UI (zapis w audycie).
-- **Rejestr zapytań** w każdym przebiegu oraz **audit log** operacji.
-- **Tylko OSINT:** publiczne API i strony, identyfikujący User-Agent, limit tempa per host, brak logowania i scrapingu za logowaniem.
-- API nasłuchuje domyślnie na `127.0.0.1`. Wejście jest walidowane schematami JSON. CORS jest ograniczony do localhost. Opcjonalny `API_TOKEN`: UI prosi o token i zapisuje go w ciasteczku `HttpOnly; SameSite=Strict` (porównanie stałoczasowe); token nigdy nie trafia do adresu URL. To zabezpieczenie prototypu – brak ról i kont użytkowników.
-- **Minimalizacja danych:** zapisywane są tylko dokumenty, w których szukano śladów (z hashem do odtworzenia). Usunięcie analizy usuwa kaskadowo przebiegi i dokumenty.
-- Zależności: `npm audit` → 0 podatności (stan na 21.11.2026).
+- **Biała lista hostów.** Każde zapytanie przechodzi przez [`fetcher.ts`](apps/api/src/http/fetcher.ts), a przekierowanie poza listę jest blokowane. Dane testowe i wyniki nie trafiają do niezatwierdzonych usług.
+- **Zatwierdzenie hosta działa tylko w jednej sprawie.** Strona podana wprost przez analityka jest pobierana. Strona z nieznanego hosta znaleziona w pivocie dopiero po zatwierdzeniu, które trafia do audytu.
+- **Rejestr zapytań** w każdym przebiegu i **dziennik audytu** operacji.
+- **Tylko OSINT:** publiczne API i strony, User-Agent przedstawiający narzędzie, limit tempa na host, żadnego logowania do serwisów.
+- **API:**
+  - domyślnie słucha tylko na `127.0.0.1`,
+  - dane wejściowe są walidowane schematami JSON,
+  - CORS jest ograniczony do localhost.
+- **Opcjonalny `API_TOKEN`:**
+  - token jest przechowywany w ciasteczku `HttpOnly; SameSite=Strict` i nigdy nie trafia do adresu URL,
+  - porównanie odporne na pomiar czasu (timing attack).
+
+  Nie ma kont ani ról. W KAS zastąpi go SSO.
+- **Minimalizacja danych:** zapisywane są tylko przeanalizowane dokumenty, z hashem do odtworzenia.
 
 ---
 
 ## Rozbudowa
 
-- **Nowe źródło Web2:** plik w `apps/api/src/sources/` implementujący `Source` (`id`, `accepts`, `search()`) i jeden wpis w [`registry.ts`](apps/api/src/sources/registry.ts). Struktury fora (autor fragmentu) przekazuje się w `segments`, adresy z pól profilu w `structuredAddresses`.
-- **Nowa sieć blockchain:** wzorzec `Chain` w `extract/addresses.ts` i dostawca w `chain/providers.ts` (np. Blockscout dla Polygon/Arbitrum/Base – ten sam kod co ETH, inny `BLOCKSCOUT_URL`).
-- **Nowe etykiety:** UI *Etykiety adresów* lub `data/labels.json`.
-- **Nowe reguły:** `scoring/context.ts` (słowa kluczowe i kategorie), `scoring/confidence.ts` (parametry w `SCORING_PARAMS`).
+- **Nowe źródło:** plik w `apps/api/src/sources/` z interfejsem `Source` (`id`, `accepts`, `search()`) i jeden wpis w [`registry.ts`](apps/api/src/sources/registry.ts).
+- **Nowa sieć blockchain:** wzorzec adresu w `extract/addresses.ts` i dostawca w `chain/providers.ts`. Dla Polygon, Arbitrum czy Base wystarczy inny `BLOCKSCOUT_URL`, bo kod jest ten sam co dla ETH.
+- **Nowe etykiety:** w UI (*Etykiety adresów*) albo w `data/labels.json`.
+- **Nowe reguły:** `scoring/context.ts` (słowa kluczowe), `scoring/confidence.ts` (wagi w `SCORING_PARAMS`).
 
 ---
 
-## Źródła danych i licencje
+## Zgodność z wymaganiami zadania
 
-Kod: MIT. Zależności (wszystkie open source):
+| Wymaganie | Gdzie w OGAR |
+|---|---|
+| Wejście: imię i nazwisko, nick, komunikator, login, e-mail, adres krypto | formularz **Nowa analiza**, wiele identyfikatorów naraz |
+| Wyszukiwanie powiązań w otwartych źródłach | źródła Web2 i pivot ([Jak to działa](#jak-to-działa)) |
+| Kategoryzacja i Wskaźnik Pewności z własnym algorytmem | K1–K8 + R1–R10 ([Wskaźnik Pewności](#wskaźnik-pewności)) |
+| Rozpoznawanie i wyodrębnianie adresów z tekstu | walidacja sum kontrolnych + zakładka **Ekstraktor adresów** |
+| Wskaźniki wyjścia do fiat | `CEX_OUTFLOW`, `OFFRAMP`, `STABLECOIN_SWAP` ([On-chain](#on-chain-i-wyjście-do-fiat)) |
+| Odrzucanie giełd, kontraktów, adresów instytucjonalnych | E1 (etykiety), E2 (bytecode), R8 |
+| Cykliczne analizy, zapis wyników, porównanie | harmonogram, historia przebiegów, zakładka **Zmiany w czasie** |
+| *(opcjonalne)* Wykrywanie podmiany adresów w czasie | scenariusz 4 (monitoring), Wayback Machine |
+| Źródło, URL, data pobrania i metadane do odtworzenia | zakładka **Źródła**, SHA-256, rejestr zapytań, raport cz. 8 |
+| Raport: fakty / obliczenia / wnioski, czytelny bez wiedzy IT | **Raport OSINT** |
+| Scenariusze na danych syntetycznych | piaskownica + `npm test` |
+| Backend Node.js, React, PostgreSQL, open source, monorepo | tak ([Licencje](#licencje-i-źródła-danych)) |
+| AI z łatwą wymianą modelu, uruchamiane lokalnie | API zgodne z OpenAI, Ollama ([AI](#ai-opcjonalnie)) |
+| Brak wysyłki danych do niezatwierdzonych usług | biała lista hostów ([Bezpieczeństwo](#bezpieczeństwo)) |
+
+---
+
+## Licencje i źródła danych
+
+Kod OGAR: [MIT](LICENSE). Wszystkie zależności są open source:
 
 | Komponent | Wersja | Licencja |
 |---|---|---|
@@ -342,38 +518,42 @@ Kod: MIT. Zależności (wszystkie open source):
 | @noble/hashes (keccak-256) | 1.8 | MIT |
 | react, react-dom | 19.3 | MIT |
 | vite, @vitejs/plugin-react | 6.4 / 4.7 | MIT |
-| Czcionki @fontsource: Saira Stencil One, IBM Plex Sans, IBM Plex Mono | 5.3 | OFL-1.1 |
+| czcionki @fontsource: Saira Stencil One, IBM Plex Sans, IBM Plex Mono | 5.3 | OFL-1.1 |
 | typescript | 5.9 | Apache-2.0 |
-| pg (sterownik serwera PostgreSQL) | 8.23 | MIT |
+| pg (sterownik PostgreSQL) | 8.23 | MIT |
 | @electric-sql/pglite (wbudowany PostgreSQL) | 0.5 | Apache-2.0 |
-| PostgreSQL (serwer, obraz `postgres:17-alpine`) | 17 | PostgreSQL License |
+| PostgreSQL (obraz `postgres:17-alpine`) | 17 | PostgreSQL License |
 | Node.js (`node:test`) | 24 | MIT |
 
-Usługi zewnętrzne (publiczne, bez kluczy; korzystanie zgodnie z ich warunkami):
+Usługi zewnętrzne (publiczne, bez kluczy, zgodnie z ich warunkami):
 
-| Usługa | Zastosowanie | Warunki |
+| Usługa | Do czego | Warunki |
 |---|---|---|
-| GitHub REST API | profile, README, gisty | GitHub Terms of Service, limit 60 zapytań/h bez tokenu |
+| GitHub REST API | profile, README, gisty | GitHub ToS, 60 zapytań/h bez tokenu |
 | Keybase API | dowody tożsamości, podpisane adresy | Keybase Terms |
 | Gravatar API | profil po hashu e-maila | Gravatar/Automattic ToS |
-| Reddit JSON | wypowiedzi użytkowników | Reddit Data API Terms (obecnie wymaga OAuth – patrz ograniczenia) |
-| HN Algolia API | profil, komentarze, wyszukiwanie | publiczne API Algolia dla HN |
+| Reddit JSON | wypowiedzi | Reddit Data API Terms (dziś wymaga OAuth) |
+| HN Algolia API | profile, komentarze, wyszukiwanie | publiczne API Algolia dla HN |
 | Internet Archive (Wayback CDX) | wersje archiwalne | Internet Archive Terms of Use |
-| Blockscout (eth.blockscout.com) | dane Ethereum, etykiety, flaga kontraktu | publiczna instancja; Blockscout GPL-3.0, można hostować samodzielnie |
-| Blockstream Esplora | dane Bitcoin | publiczne API; Esplora MIT, można hostować samodzielnie |
+| Blockscout | dane Ethereum, etykiety, flaga kontraktu | publiczna instancja; GPL-3.0, można hostować samemu |
+| Blockstream Esplora | dane Bitcoin | publiczne API; MIT, można hostować samemu |
 | TronGrid | dane TRON | TronGrid Terms (bez klucza – niskie limity) |
+
+`npm audit`: 0 podatności (21.11.2026).
 
 ---
 
 ## Ograniczenia
 
-- **Na żywo działają głównie serwisy programistyczne** (GitHub, Keybase, Gravatar, Hacker News). Fora, ogłoszenia P2P i komunikatory – wymienione w zadaniu – są dziś pokryte tylko w piaskownicy. Najważniejsze brakujące źródła: **Bitcointalk** (publiczne profile z adresami BTC) i **publiczne kanały Telegram** (podgląd `t.me/s/{kanał}` działa bez logowania).
-- **Reddit** odrzuca dziś zapytania automatyczne bez OAuth (HTTP 403) – dlatego nie jest w domyślnym zestawie źródeł.
-- **Facebook, Instagram, TikTok, X, OLX** nie udostępniają wyszukiwania bez logowania; zgodnie z zasadami OSINT ich nie scrapujemy. Publiczne strony można podać jako URL.
-- **Nieprzetestowane:** SearXNG, ścieżka Tronscan z kluczem (`TRONSCAN_API_KEY`).
-- **Wykrywanie wyjścia do fiat** opiera się na etykietach – prawdziwe adresy depozytowe giełd są unikalne dla użytkownika i nieoznaczone; brakuje analizy „o jeden krok dalej” (depozyt → portfel giełdy). Brak też wyceny w PLN (kurs NBP na dzień transakcji), istotnej dla PIT-38.
-- **Portfele-kontrakty** (Safe, Argent) są wykluczane regułą E2 jak każdy kontrakt, choć mogą należeć do osoby. Adres EVM jest analizowany tylko w sieci Ethereum (BSC/Polygon – inny `BLOCKSCOUT_URL`).
-- Dane on-chain są analizowane na **próbce** (ostatnie 25–100 transakcji). Sumy wolumenu pochodzą ze statystyk eksploratora, a raport informuje o próbkowaniu. Dla BTC nie stosujemy heurystyk klastrowania (common-input) – to kierunek rozwoju.
-- Lista etykiet giełd jest **startowa**, spisana bez weryfikacji w eksploratorze – wymaga sprawdzenia i utrzymania (lub integracji z komercyjną bazą etykiet).
-- Wskaźnik Pewności to **ocena prawdopodobieństwa, nie dowód**. Każdy wniosek w raporcie zawiera informację, co należy zweryfikować.
-- Kryteria formalne spoza repozytorium (prezentacja PDF, film ≤ 3 min) przygotowuje zespół osobno.
+Mówimy otwarcie, czego OGAR dziś nie umie:
+
+- **Na żywo działają głównie serwisy programistyczne** (GitHub, Keybase, Gravatar, Hacker News). Fora, ogłoszenia P2P i komunikatory są dziś pokryte tylko w piaskownicy. Najważniejsze brakujące źródła to **Bitcointalk** i **publiczne kanały Telegram** (podgląd `t.me/s/…` działa bez logowania).
+- **Reddit** odrzuca zapytania bez OAuth (HTTP 403), dlatego nie jest włączony domyślnie.
+- **Facebook, Instagram, TikTok, X, OLX** nie pozwalają szukać bez logowania, a my nie scrapujemy za logowaniem. Pojedynczą publiczną stronę można podać jako URL.
+- **Nieprzetestowane:** SearXNG i Tronscan z kluczem API.
+- **Wykrywanie wyjścia do fiat opiera się na etykietach.** Prawdziwe adresy depozytowe giełd są unikalne dla klienta i nieoznaczone, a OGAR nie śledzi jeszcze kroku „depozyt → portfel giełdy”. Brakuje też wyceny w PLN po kursie NBP, ważnej dla PIT-38.
+- **Portfele-kontrakty** (Safe, Argent) są wykluczane jak każdy kontrakt, choć mogą należeć do osoby. Adres EVM jest sprawdzany tylko w sieci Ethereum.
+- **Dane on-chain to próbka** (ostatnie 25–100 transakcji) i raport to zaznacza. Dla BTC nie ma jeszcze klastrowania adresów.
+- **Lista etykiet giełd jest startowa** i wymaga utrzymania albo integracji z komercyjną bazą etykiet.
+- **Wskaźnik Pewności to ocena prawdopodobieństwa, nie dowód.** Każdy wniosek w raporcie mówi, co trzeba sprawdzić.
+- Prezentację PDF i film (≤ 3 min) zespół przygotowuje osobno, poza repozytorium.

@@ -3,7 +3,7 @@
 import { CATEGORY_LABELS } from '../chain/types.ts';
 import { IDENTIFIER_LABELS } from '../extract/identifiers.ts';
 import { CONTEXT_INFO } from '../scoring/context.ts';
-import { BANDS, SCORING_PARAMS } from '../scoring/confidence.ts';
+import { BANDS, isAttributed, SCORING_PARAMS } from '../scoring/confidence.ts';
 import { INVALID_REASONS, type Investigation, type RunRow } from '../engine/store.ts';
 import type { RunResult } from '../engine/investigate.ts';
 
@@ -26,7 +26,7 @@ function scoreColor(s: number, excluded: boolean) {
 }
 
 export function renderReport(inv: Investigation, run: RunRow, r: RunResult): string {
-  const attributed = r.addresses.filter((a) => !a.score.excluded && a.score.score >= 40);
+  const attributed = r.addresses.filter((a) => isAttributed(a.score));
   const low = r.addresses.filter((a) => !a.score.excluded && a.score.score < 40);
   const excluded = r.addresses.filter((a) => a.score.excluded);
   const docById = new Map(r.documents.map((d) => [d.id, d]));

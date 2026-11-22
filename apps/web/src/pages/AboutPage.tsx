@@ -35,7 +35,7 @@ export function AboutPage({ meta }: { meta: Meta }) {
           <li>Przeszukuje publiczne źródła i automatycznie podąża za nowo znalezionymi identyfikatorami (pivot).</li>
           <li>Wykrywa adresy kryptowalut w tekście i sprawdza ich sumy kontrolne, żeby odrzucić literówki i podróbki.</li>
           <li>Ustala, czy adres opublikowała badana osoba, czy ktoś inny.</li>
-          <li>Liczy Wskaźnik Pewności (0–100%) według jawnego algorytmu, opisanego w zakładce <a href="#/method">Metodyka</a>.</li>
+          <li>Liczy Wskaźnik Pewności (0–99%) według jawnego algorytmu, opisanego w zakładce <a href="#/method">Metodyka</a>.</li>
           <li>Odrzuca adresy giełd, smart kontraktów, mikserów, zbiórek i kantorów, żeby nie przypisać ich osobie.</li>
           <li>Analizuje transakcje (BTC, ETH, TRON) i wskazuje sygnały wyjścia do walut tradycyjnych.</li>
           <li>Zapisuje wyniki z metadanymi, uruchamia analizy cyklicznie, porównuje przebiegi i wykrywa podmianę adresu w profilu.</li>
@@ -58,7 +58,32 @@ export function AboutPage({ meta }: { meta: Meta }) {
         </ul>
       </div>
 
-      <div className="doc-h"><span className="n">4.</span> Jak czytać wyniki</div>
+      <div className="doc-h"><span className="n">4.</span> Jak korzystać</div>
+      <div className="panel">
+        <ul style={{ margin: 0 }}>
+          <li>
+            <b>Nowa analiza</b> wymaga co najmniej jednego identyfikatora. Scenariusze demonstracyjne działają na piaskownicy z fikcyjnymi danymi ({meta.config.sandboxUrl}),
+            bez przetwarzania danych prawdziwych osób.
+          </li>
+          <li>
+            <b>Poprawa parametrów</b> (menu ⋯ analizy) uruchamia nowy przebieg; poprzednie zostają w historii sprawy. Literówkę w identyfikatorze poprawiaj właśnie tak.
+          </li>
+          <li>
+            <b>Przebieg oznaczony jako błędny</b> nie jest usuwany: zostaje w historii i w dzienniku audytu, ale nie liczy się jako aktualny wynik i jest pomijany w
+            porównaniach. Oznaczenie można cofnąć.
+          </li>
+          <li><b>Analizę cykliczną</b> ustawiasz przy tworzeniu analizy albo później na jej stronie (pole „Analiza cykliczna”).</li>
+          <li>
+            <b>Strony z nieznanych hostów</b>, znalezione w trakcie analizy, pojawiają się w podsumowaniu. Zatwierdź host i uruchom analizę ponownie, żeby je pobrać.
+          </li>
+          <li><b>Etykieta analityka</b> (przycisk „Oznacz adres…”) wyklucza adres z przypisania osobie w kolejnych przebiegach.</li>
+          <li><b>Mapa powiązań:</b> kółko myszy przybliża i oddala, przeciągnięcie przesuwa widok, dwuklik w tło dopasowuje mapę do okna.</li>
+          <li><b>Kosz:</b> usunięta analiza jest przechowywana przez 30 dni razem z przebiegami i dokumentami, potem jest kasowana na stałe.</li>
+          <li><b>AI</b> włącza administrator (zmienna <code>AI_PROVIDER</code>, np. lokalna Ollama). Podpowiada kategorię kontekstu, ale nie zmienia wyniku.</li>
+        </ul>
+      </div>
+
+      <div className="doc-h"><span className="n">5.</span> Jak czytać wyniki</div>
       <div className="callout warn" style={{ marginTop: 0 }}>
         <b>Wskaźnik Pewności to ocena prawdopodobieństwa, a nie dowód.</b> Każdy wniosek w raporcie zawiera informację, co należy zweryfikować przed podjęciem
         dalszych czynności.
@@ -71,13 +96,13 @@ export function AboutPage({ meta }: { meta: Meta }) {
         </ul>
       </div>
 
-      <div className="doc-h"><span className="n">5.</span> Informacje techniczne</div>
+      <div className="doc-h"><span className="n">6.</span> Informacje techniczne</div>
       <div className="panel flush">
         <table>
           <tbody>
             <tr><th style={{ width: 240 }}>Wersja</th><td>{VERSION}</td></tr>
             <tr><th>Projekt</th><td>HackNation 2026 · wyzwanie Ministerstwa Finansów / KAS</td></tr>
-            <tr><th>Technologie</th><td>Node.js + TypeScript (API), React 19 + Vite (interfejs), SQLite</td></tr>
+            <tr><th>Technologie</th><td>Node.js + TypeScript (API), React 19 + Vite (interfejs), PostgreSQL</td></tr>
             <tr><th>Licencja</th><td>MIT; wszystkie zależności są open source</td></tr>
             <tr>
               <th>Analiza on-chain</th>

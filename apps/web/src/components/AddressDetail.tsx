@@ -47,7 +47,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
       </div>
       {labelForm && (
         <div className="callout row small">
-          Dodaj etykietę analityka (np. adres giełdy) – kolejne przebiegi wykluczą go z przypisania osobowego:
+          Etykieta analityka:
           <input value={lname} onChange={(e) => setLname(e.target.value)} placeholder="nazwa podmiotu" />
           <select value={lcat} onChange={(e) => setLcat(e.target.value)}>
             {Object.entries(meta.categories).map(([k, v]) => (
@@ -154,7 +154,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
           <tr>
             <td />
             <td>
-              <b>Wynik</b> <span className="muted small">(ograniczony do 0–99) · {a.score.bandLabel}</span>
+              <b>Wynik</b> <span className="muted small">{a.score.bandLabel}</span>
             </td>
             <td>
               <b>{a.score.score}</b>

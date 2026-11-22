@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, fmtDate, fmtNum, INVALID_REASON_LABELS, shortAddr, SCHEDULES, type CompareResult, type Investigation, type InvalidReason, type Meta, type RunResult, type RunRow } from '../api.ts';
+import { api, fmtDate, fmtNum, INVALID_REASON_LABELS, isAttributed, shortAddr, SCHEDULES, type CompareResult, type Investigation, type InvalidReason, type Meta, type RunResult, type RunRow } from '../api.ts';
 import { go } from '../App.tsx';
 import { ScoreBadge, ScoreBar, BAND_SHORT, Chain } from '../components/Score.tsx';
 import { AddressDetail } from '../components/AddressDetail.tsx';
@@ -18,7 +18,7 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
   const [result, setResult] = useState<RunResult | null>(null);
   const [tab, setTab] = useState<Tab>('summary');
   const [selected, setSelected] = useState<string | null>(null);
-  const [doc, setDoc] = useState<{ title: string; url: string; content: string; sha256: string; fetched_at: string } | null>(null);
+  const [doc, setDoc] = useState<Awaited<ReturnType<typeof api.document>> | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -65,14 +65,13 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
       setResult(null);
       return;
     }
-    api.run(runId).then((r) => setResult(r.result));
+    api.run(runId).then((r) => setResult(r.result)).catch((e) => setActionErr(`Nie udało się wczytać wyników: ${e instanceof Error ? e.message : String(e)}`));
   }, [runId, currentRun?.status]);
 
   const openDoc = useCallback(
     async (docId: string) => {
       if (!runId) return;
-      const d = await api.document(runId, docId);
-      setDoc({ title: d.title, url: d.url, content: d.content, sha256: d.sha256, fetched_at: d.fetched_at });
+      setDoc(await api.document(runId, docId));
     },
     [runId],
   );
@@ -219,7 +218,7 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
             <b>Przebieg #{currentRun.seq} unieważniony</b> · {INVALID_REASON_LABELS[currentRun.invalidated.reason] ?? currentRun.invalidated.reason}
             {currentRun.invalidated.note ? <>: {currentRun.invalidated.note}</> : null}
             <div className="small">
-              Oznaczony {fmtDate(currentRun.invalidated.at)}. Wyniki poniżej zostają do wglądu, ale nie liczą się jako aktualny wynik sprawy i są pomijane w porównaniach.
+              Oznaczony {fmtDate(currentRun.invalidated.at)}.
             </div>
           </div>
           <button className="sm" onClick={() => revalidate(currentRun)}>Cofnij unieważnienie</button>
@@ -327,9 +326,6 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
             Przebieg <b>nie zostanie usunięty</b>: zostaje w historii sprawy i w dzienniku audytu. Przestanie liczyć się jako aktualny wynik, a porównania w czasie będą go pomijać. Oznaczenie można cofnąć.
           </p>
           <InvalidReasonFields reason={invReason} setReason={setInvReason} note={invNote} setNote={setInvNote} />
-          <p className="small muted" style={{ marginTop: 10 }}>
-            Jeśli błąd wynikał z parametrów (np. literówka w identyfikatorze), użyj „Popraw parametry i uruchom ponownie”.
-          </p>
         </ConfirmDialog>
       )}
 
@@ -369,7 +365,7 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
 
 function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (key: string) => void; approved: string[]; onApprove: (host: string) => void }) {
   const s = r.stats;
-  const top = r.addresses.filter((a) => !a.score.excluded && a.score.score >= 40); // silnik sortuje malejąco po wyniku
+  const top = r.addresses.filter(isAttributed); // silnik sortuje malejąco po wyniku
   const skipped = r.skippedUrls ?? [];
   const best = top[0] ?? null;
   return (
@@ -377,7 +373,6 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
       {skipped.length > 0 && (
         <div className="panel callout warn">
           <b>Strony ujawnione w trakcie analizy, których nie pobrano</b>
-          <div className="small">Host spoza białej listy = niezaufany zasób. Zatwierdź host, jeśli strona ma zostać przeanalizowana, a potem uruchom analizę ponownie.</div>
           <table style={{ marginTop: 6 }}>
             <tbody>
               {skipped.map((u) => (
@@ -432,7 +427,6 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
           <div>
             <div className="label">Brak przypisania</div>
             <p className="sentence">Żaden adres nie osiągnął Wskaźnika Pewności ≥ 40%.</p>
-            <p>Sprawdź źródła i odrzuconych kandydatów lub zwiększ głębokość pivotu.</p>
           </div>
         </div>
       )}
@@ -452,7 +446,7 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
       </div>
 
       <div className="doc-h">
-        <span className="n">3.</span> Adresy powiązane z badanym <span className="aside">kliknij wiersz, aby zobaczyć dowody</span>
+        <span className="n">3.</span> Adresy powiązane z badanym
       </div>
       <div className="panel flush">
         {top.length === 0 ? (
@@ -518,11 +512,11 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
 
 function Addresses({ r, meta, selected, setSelected, openDoc }: { r: RunResult; meta: Meta; selected: string | null; setSelected: (k: string | null) => void; openDoc: (d: string) => void }) {
   const [filter, setFilter] = useState<'all' | 'attributed' | 'excluded'>('all');
-  const list = r.addresses.filter((a) => (filter === 'all' ? true : filter === 'excluded' ? a.score.excluded : !a.score.excluded && a.score.score >= 40));
+  const list = r.addresses.filter((a) => (filter === 'all' ? true : filter === 'excluded' ? a.score.excluded : isAttributed(a)));
   const sel = r.addresses.find((a) => a.key === selected) ?? list[0];
   const counts = {
     all: r.addresses.length,
-    attributed: r.addresses.filter((a) => !a.score.excluded && a.score.score >= 40).length,
+    attributed: r.addresses.filter(isAttributed).length,
     excluded: r.addresses.filter((a) => a.score.excluded).length,
   };
   return (
@@ -556,7 +550,7 @@ function Addresses({ r, meta, selected, setSelected, openDoc }: { r: RunResult; 
           </tbody>
         </table>
       </div>
-      <div className="panel detail">{sel ? <AddressDetail a={sel} meta={meta} onOpenDoc={openDoc} /> : <div className="empty">Wybierz adres z listy, aby zobaczyć dowody, wyliczenie Wskaźnika Pewności i aktywność on-chain.</div>}</div>
+      <div className="panel detail">{sel ? <AddressDetail a={sel} meta={meta} onOpenDoc={openDoc} /> : <div className="empty">Wybierz adres z listy.</div>}</div>
     </div>
   );
 }
@@ -564,9 +558,6 @@ function Addresses({ r, meta, selected, setSelected, openDoc }: { r: RunResult; 
 function Timeline({ r, meta }: { r: RunResult; meta: Meta }) {
   return (
     <div className="panel flush table-wrap">
-      <div style={{ padding: '10px 14px' }} className="small muted">
-        Chronologiczny przepływ środków na adresach przypisanych badanemu (≥40%). Wiersze oznaczone „cash-out” wskazują możliwe wyjście do walut tradycyjnych.
-      </div>
       <table>
         <thead>
           <tr><th>Czas</th><th>Adres</th><th>Kierunek</th><th>Kwota</th><th>Kontrahent</th><th>Tx</th></tr>
@@ -621,9 +612,6 @@ function Sources({ r, openDoc }: { r: RunResult; openDoc: (d: string) => void })
       </div>
       <div className="panel">
         <h3>Konta i potwierdzenie tożsamości</h3>
-        <div className="small muted" style={{ marginBottom: 8 }}>
-          Konta łączone są wyłącznie twardymi powiązaniami (odnośnik, wspólny e-mail/Telegram/telefon, dowód Keybase, dane wejściowe). Konto połączone z badanym tylko zgodnym nickiem dostaje karę R9.
-        </div>
         {(r.identity ?? []).map((c) => (
           <div key={c.id} className={`callout ${c.confirmed ? '' : 'warn'}`} style={{ marginBottom: 6 }}>
             <b>{c.confirmed ? '✔ Potwierdzona grupa kont badanego' : 'Konto/grupa niepotwierdzona'}</b> <span className="small muted">– {c.reason}</span>
@@ -677,10 +665,11 @@ function Compare({ runs, current }: { runs: RunRow[]; current: string }) {
       setRes(null);
       return;
     }
+    setErr(null);
     api.compare(a, b).then(setRes).catch((e) => setErr(String(e.message ?? e)));
   }, [a, b]);
   const opts = useMemo(() => runs.map((r) => <option key={r.id} value={r.id}>#{r.seq} · {fmtDate(r.startedAt)}{r.invalidated ? ' · UNIEWAŻNIONY' : ''}</option>), [runs]);
-  if (runs.length < 2) return <div className="panel empty">Do porównania potrzebne są co najmniej dwa zakończone przebiegi. Uruchom analizę ponownie lub ustaw analizę cykliczną.</div>;
+  if (runs.length < 2) return <div className="panel empty">Do porównania potrzebne są co najmniej dwa zakończone przebiegi.</div>;
   const Empty = () => <span className="muted small">brak</span>;
   return (
     <div className="panel">
@@ -734,7 +723,7 @@ function Log({ r }: { r: RunResult }) {
   return (
     <div className="panel flush table-wrap">
       <div style={{ padding: '10px 14px' }} className="small muted">
-        Wszystkie zapytania sieciowe przebiegu (biała lista hostów: {String(r.configSnapshot.allowedHosts ?? '').split(',').length} pozycji). Silnik v{r.engineVersion}, {fmtDate(r.startedAt)} – {fmtDate(r.finishedAt)}.
+        Wszystkie zapytania sieciowe przebiegu (biała lista hostów: {(r.configSnapshot.allowedHosts as string[] | undefined)?.length ?? 0} pozycji). Silnik v{r.engineVersion}, {fmtDate(r.startedAt)} – {fmtDate(r.finishedAt)}.
       </div>
       <table>
         <thead><tr><th>Czas</th><th>URL</th><th>Status</th><th>Cache</th><th>ms</th></tr></thead>

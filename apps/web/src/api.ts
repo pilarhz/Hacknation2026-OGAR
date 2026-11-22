@@ -44,7 +44,7 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
 
 // Sygnał „lista analiz się zmieniła” – menu boczne i lista odświeżają się od razu, bez czekania na odpytanie.
 export const INVESTIGATIONS_CHANGED = 'ogar:investigations-changed';
-export const notifyInvestigationsChanged = () => window.dispatchEvent(new Event(INVESTIGATIONS_CHANGED));
+const notifyInvestigationsChanged = () => window.dispatchEvent(new Event(INVESTIGATIONS_CHANGED));
 const changed = async <T,>(p: Promise<T>) => {
   const r = await p;
   notifyInvestigationsChanged();
@@ -114,6 +114,8 @@ export interface ExtractResult {
 
 export const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('pl-PL') : '—');
 export const fmtNum = (n?: number | null, max = 6) => (n === null || n === undefined ? '—' : n.toLocaleString('pl-PL', { maximumFractionDigits: max }));
+/** Jak isAttributed w scoring/confidence.ts (bundle web importuje z backendu tylko typy). */
+export const isAttributed = (a: AddressResult) => !a.score.excluded && a.score.score >= 40;
 export const shortAddr = (a: string) => (a.length > 18 ? `${a.slice(0, 10)}…${a.slice(-6)}` : a);
 export const SCHEDULES: [number, string][] = [
   [0, 'ręcznie'],

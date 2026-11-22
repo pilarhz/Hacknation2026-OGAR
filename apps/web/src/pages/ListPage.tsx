@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, fmtDate, fmtSchedule, INVESTIGATIONS_CHANGED, type InvestigationListItem } from '../api.ts';
 import { go } from '../App.tsx';
 
-const bandOf = (s: number) => (s >= 80 ? 'VERY_HIGH' : s >= 60 ? 'PROBABLE' : s >= 40 ? 'MEDIUM' : s > 0 ? 'LOW' : 'NOT_ATTRIBUTED');
+const bandOf = (s: number) => (s >= 80 ? 'VERY_HIGH' : s >= 60 ? 'PROBABLE' : s >= 40 ? 'MEDIUM' : s >= 10 ? 'LOW' : 'NOT_ATTRIBUTED');
 
 export function ListPage() {
   const [items, setItems] = useState<InvestigationListItem[] | null>(null);
@@ -22,7 +22,6 @@ export function ListPage() {
       <div className="page-head">
         <div>
           <h1>Analizy</h1>
-          <p className="lead">Sprawy OSINT – identyfikatory wejściowe, kolejne przebiegi i najważniejsze wyniki. Kliknij wiersz, aby otworzyć analizę.</p>
         </div>
         <button className="cta" onClick={() => go('/new')}>
           Nowa analiza

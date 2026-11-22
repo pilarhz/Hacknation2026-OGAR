@@ -1,7 +1,8 @@
 // Wykrywanie i walidacja adresów krypto w tekście. Kandydaci z błędną sumą kontrolną trafiają do `rejected`.
 import { base58CheckDecode, base58Decode, decodeSegwit, toChecksumAddress } from './encoding.ts';
 
-export type Chain = 'BTC' | 'ETH' | 'TRX' | 'LTC' | 'DOGE' | 'SOL' | 'XMR';
+export const CHAINS = ['BTC', 'ETH', 'TRX', 'LTC', 'DOGE', 'SOL', 'XMR'] as const;
+export type Chain = (typeof CHAINS)[number];
 
 /** Klucz deduplikacji adresu: chain:adres (ETH małymi literami). */
 export const addressKey = (chain: string, address: string) => `${chain}:${chain === 'ETH' ? address.toLowerCase() : address}`;

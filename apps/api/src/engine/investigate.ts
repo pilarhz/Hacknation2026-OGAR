@@ -9,7 +9,7 @@ import { accountKey, buildIdentity, type IdentityComponent } from './identity.ts
 import { getSources } from '../sources/registry.ts';
 import type { Segment, SourceDocument } from '../sources/types.ts';
 import { classifyContext, CONTEXT_INFO } from '../scoring/context.ts';
-import { scoreAddress, type Evidence, type ScoreResult } from '../scoring/confidence.ts';
+import { isAttributed, scoreAddress, type Evidence, type ScoreResult } from '../scoring/confidence.ts';
 import { lookupLabel } from '../chain/labels.ts';
 import { getChainSummary } from '../chain/providers.ts';
 import { computeIndicators } from '../chain/indicators.ts';
@@ -489,7 +489,7 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
   }
 
   // ---------- 5. Wskaźniki i ostateczny wynik (2. przebieg – powiązania on-chain) ----------
-  const attributedKeys = new Map(results.filter((r) => !r.score.excluded && r.score.score >= 40).map((r) => [r.key, r.address]));
+  const attributedKeys = new Map(results.filter((r) => isAttributed(r.score)).map((r) => [r.key, r.address]));
   for (const r of results) {
     if (r.onchain) r.indicators = computeIndicators(r.onchain, { linkedKeys: new Map([...attributedKeys].filter(([k]) => k !== r.key)), stableThreshold: options.stableThreshold, highActivityTx: 5000 });
   }
@@ -604,7 +604,7 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
     documents: raw.length,
     documentsWithAddresses: raw.filter((r) => r.rec.addressCount > 0).length,
     addresses: results.length,
-    attributed: results.filter((r) => !r.score.excluded && r.score.score >= 40).length,
+    attributed: results.filter((r) => isAttributed(r.score)).length,
     highConfidence: results.filter((r) => r.score.score >= 80).length,
     excluded: results.filter((r) => r.score.excluded).length,
     rejectedCandidates: rejected.length,

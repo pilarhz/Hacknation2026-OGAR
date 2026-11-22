@@ -224,11 +224,11 @@ export function RelationMap({ r, meta, onOpenAddress }: { r: RunResult; meta: Me
     <div className="map panel flush">
       <div className="map-bar">
         <div className="map-legend">
-          <span><i className="lg found" />znaleziono / publikuje</span>
-          <span><i className="lg pivot" />pivot</span>
-          <span><i className="lg mentions-other" />inna osoba</span>
-          <span><i className="lg onchain" />on-chain</span>
-          <span><i className="lg service" />do usługi</span>
+          <span><i className="legend-line found" />znaleziono / publikuje</span>
+          <span><i className="legend-line pivot" />pivot</span>
+          <span><i className="legend-line mentions-other" />inna osoba</span>
+          <span><i className="legend-line onchain" />on-chain</span>
+          <span><i className="legend-line service" />do usługi</span>
         </div>
         <div className="map-tools">
           {excludedCount > 0 && (
@@ -321,7 +321,6 @@ export function RelationMap({ r, meta, onOpenAddress }: { r: RunResult; meta: Me
           </div>
         <div className="map-hint" aria-hidden>
           <span className="num">{Math.round(view.s * 100)}%</span>
-          <span>kółko: przybliż / oddal · przytrzymaj i przeciągnij: przesuń · dwuklik w tło: dopasuj</span>
         </div>
       </div>
 

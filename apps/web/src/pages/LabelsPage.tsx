@@ -40,9 +40,6 @@ export function LabelsPage({ meta }: { meta: Meta }) {
   return (
     <>
       <h1>Etykiety adresów</h1>
-      <div className="muted" style={{ marginBottom: 12 }}>
-        Adresy giełd, kontraktów, mikserów, kantorów i zbiórek nie są przypisywane osobie (Wskaźnik Pewności 0%), ale interakcje z nimi są odnotowywane jako wskaźniki (np. wyjście do fiat). Oprócz listy startowej system korzysta z etykiet zwracanych przez eksploratory (Blockscout, Tronscan) i z flagi kontraktu (bytecode ≠ 0x).
-      </div>
       <div className="panel">
         <h3>Dodaj etykietę analityka</h3>
         <div className="row">

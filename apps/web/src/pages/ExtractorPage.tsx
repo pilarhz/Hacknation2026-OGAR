@@ -12,9 +12,6 @@ export function ExtractorPage() {
   return (
     <>
       <h1>Ekstraktor adresów i identyfikatorów</h1>
-      <div className="muted" style={{ marginBottom: 12 }}>
-        Wklej dowolny tekst (post, ogłoszenie, wiadomość). Każdy kandydat przechodzi walidację sumy kontrolnej: Base58Check (BTC/LTC/DOGE/TRON), Bech32/Bech32m (SegWit/Taproot), EIP-55 (Ethereum).
-      </div>
       <div className="panel">
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={8} style={{ width: '100%' }} />
         <div className="row" style={{ marginTop: 8 }}>

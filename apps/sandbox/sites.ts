@@ -11,7 +11,10 @@ export interface Page {
 
 const A = {
   tipjar: 'bc1qpgfd4zxrrenlgyxvvlvrqy84a8f2h408fmfakp',
-  tipjarV2: 'bc1q9tuvwnq9s56nhkagcrvrzxhj7dwzfvdnvjufu8',
+  olaTrx: 'TUif3irKWRKLhzUw6yxyJNXayRqAncnCT9',
+  olaEth: '0xa88e193AF8F2bF13beaD0515f635371FF4A3357d',
+  marekV1: 'bc1ql8ur7j730hwtyn3jfwxcvwwwyqttksaln6tal8',
+  marekV2: 'bc1q3nvmyp6hwzzyyjda3w0dvvvqp8h4vcku6huhnw',
   p2p: '0xCfE541F7a25C5cD54277D1Dc4A2Ca6E37626ff4A',
   forum: '0x7B431cddF8855cAd9946aB62557E5EE893b92D83',
   forumTypo: '0x7B431cddF8855cAd9946aB62557E5EE893b92D84',
@@ -35,14 +38,14 @@ export const PAGES: Page[] = [
   {
     path: '/s/kodhub.example/cryptojanek',
     title: 'cryptojanek – KodHub',
-    render: (p, base) =>
+    render: (_p, base) =>
       shell(
         'kodhub.example (serwis dla programistów)',
         'cryptojanek – KodHub',
         `<main data-doc data-kind="profile" data-author="cryptojanek" data-verified="true" data-published="2024-05-10T08:00:00Z">
 <h1>cryptojanek <small>(Jan Testowy)</small> ✔</h1>
 <p>Python / Solidity developer z Bydgoszczy. Buduję boty do arbitrażu.</p>
-<p>☕ Tip jar BTC: <code>${p === 1 ? A.tipjar : A.tipjarV2}</code></p>
+<p>☕ Tip jar BTC: <code>${A.tipjar}</code></p>
 <p>WWW: <a href="${base}/s/janek-testowy.example/">${base}/s/janek-testowy.example/</a><br>Kontakt: jan.testowy@example.com</p>
 <h3>Repozytoria</h3><ul><li>arb-bot-eth – bot do arbitrażu DEX</li><li>p2p-escrow-notes</li></ul></main>`,
       ),
@@ -138,8 +141,49 @@ BTC: ${A.tipjar}</pre></div></main>`,
         'forum-krypto.example (forum branżowe)',
         'Forum Krypto – Ostrzeżenie: oszustwo na P2P',
         `<main data-doc data-kind="post"><h1>Ostrzeżenie: oszustwo na P2P?</h1>
-<div class="post" data-segment data-kind="post" data-author="czujny_user" data-published="2026-03-10T08:00:00Z"><span class="who">czujny_user</span><p>Uwaga, scam! Nie wysyłajcie nic na ${A.p2p} – sprzedawca nie odesłał mi PLN.</p></div>
+<div class="post" data-segment data-kind="post" data-author="czujny_user" data-published="2026-03-10T08:00:00Z"><span class="who">czujny_user</span><p>Uwaga, scam! Nie wysyłajcie nic na ${A.olaTrx} – kupująca nie przelała mi PLN, a USDT poszły.</p></div>
 </main>`,
+      ),
+  },
+  // Scenariusz 3 – ola_wymiana: wejściem jest jej adres TRON, osobę trzeba dopiero ustalić.
+  {
+    path: '/s/p2p-rynek.example/oferta/7730',
+    title: 'Kupię USDT (TRC-20) za PLN – P2P Rynek',
+    render: () =>
+      shell(
+        'p2p-rynek.example (ogłoszenia P2P)',
+        'Kupię USDT (TRC-20) za PLN – P2P Rynek',
+        `<main data-doc data-kind="listing" data-author="ola_wymiana" data-published="2026-04-15T12:00:00Z">
+<h1>Kupię USDT (TRC-20) – każdą ilość, szybki przelew PLN</h1>
+<p>Kupię USDT po 3,98 PLN. Wysyłasz na mój portfel TRC-20 <code>${A.olaTrx}</code>, ja od razu robię przelew na Twoje konto.</p>
+<p>Kupująca: <b>ola_wymiana</b> · większe kwoty ustalamy na Telegramie: t.me/ola_wymiana</p></main>`,
+      ),
+  },
+  {
+    path: '/s/telegram-podglad.example/ola_wymiana',
+    title: 'Kanał @ola_wymiana – podgląd publiczny',
+    render: () =>
+      shell(
+        'telegram-podglad.example (publiczny podgląd kanału komunikatora)',
+        'Kanał @ola_wymiana',
+        `<main data-doc data-kind="channel" data-author="ola_wymiana"><h1>@ola_wymiana – skup USDT i ETH</h1>
+<div class="post" data-segment data-kind="channel" data-author="ola_wymiana" data-published="2026-04-18T09:30:00Z"><p>Skupuję też ETH i USDT ERC-20. Przelej na adres <code>${A.olaEth}</code>, po potwierdzeniu wysyłam PLN.</p></div>
+<div class="post" data-segment data-kind="channel" data-author="ola_wymiana" data-published="2026-04-19T17:00:00Z"><p>Środki wypłacam od ręki na kartę krypto – PLN macie tego samego dnia.</p></div></main>`,
+      ),
+  },
+  // Scenariusz 4 – marek_dev: monitoring profilu; w okresie 2 podmienia adres do wsparcia.
+  {
+    path: '/s/kodhub.example/marek_dev',
+    title: 'marek_dev – KodHub',
+    render: (p) =>
+      shell(
+        'kodhub.example (serwis dla programistów)',
+        'marek_dev – KodHub',
+        `<main data-doc data-kind="profile" data-author="marek_dev" data-published="${p === 1 ? '2026-01-10T08:00:00Z' : '2026-06-01T08:00:00Z'}">
+<h1>marek_dev <small>(Marek Przykładowy)</small></h1>
+<p>Autor biblioteki <i>tiny-ledger</i> do księgowania transakcji. Rozwijam ją po godzinach.</p>
+${p === 1 ? `<p>Wesprzyj projekt – BTC: <code>${A.marekV1}</code></p>` : `<p>⚠ Zmieniłem portfel! Nowy adres do wsparcia projektu – BTC: <code>${A.marekV2}</code></p>`}
+<h3>Repozytoria</h3><ul><li>tiny-ledger</li><li>csv-to-pit</li></ul></main>`,
       ),
   },
   {

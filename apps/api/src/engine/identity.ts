@@ -47,7 +47,7 @@ function normUrl(u: string): string {
   }
 }
 
-export function identifierTokens(i: Identifier, siteOf: (url: string) => string): string[] {
+function identifierTokens(i: Identifier, siteOf: (url: string) => string): string[] {
   const v = i.value.trim();
   switch (i.kind) {
     case 'email':

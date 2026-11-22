@@ -14,11 +14,11 @@ export function MethodPage({ meta }: { meta: Meta }) {
           <ol>
             <li><b>Wyszukiwanie</b> – każde źródło przyjmuje określone typy identyfikatorów (nick, e-mail, adres…). Wyniki to dokumenty z URL, czasem pobrania i SHA-256 treści.</li>
             <li><b>Pivot</b> – identyfikatory ujawnione w dokumentach należących do badanego (e-mail w profilu, Telegram w ogłoszeniu) są wyszukiwane w kolejnym kroku (do zadanej głębokości).</li>
-            <li><b>Ekstrakcja</b> – adresy wykrywane wyrażeniami regularnymi i weryfikowane sumą kontrolną (Base58Check, Bech32/Bech32m, EIP-55). Kandydaci z błędną sumą trafiają na listę odrzuconych.</li>
+            <li><b>Ekstrakcja</b> – adresy wykrywane wyrażeniami regularnymi i weryfikowane sumą kontrolną: Base58Check (BTC/LTC/DOGE/TRON), Bech32/Bech32m (SegWit/Taproot), EIP-55 (Ethereum). Kandydaci z błędną sumą trafiają na listę odrzuconych. Ten sam mechanizm działa w zakładce <a href="#/extract">Ekstraktor adresów</a>.</li>
             <li><b>Przypisanie autorstwa</b> – adres jest przypisywany badanemu tylko wtedy, gdy opublikował go autor zgodny z identyfikatorem badanego albo dokument należy do badanego. Adres wklejony przez inną osobę ma status „brak przypisania”. Autor, który ostrzega przed adresem („scam”, „nie wysyłajcie”), nie jest uznawany za jego właściciela.</li>
-            <li><b>Tożsamość kont</b> – ten sam nick w dwóch serwisach nie oznacza tej samej osoby. Konta łączymy w grupy tylko twardymi powiązaniami (odnośnik, wspólny e-mail/Telegram/telefon, dowód Keybase, dane wejściowe); konto spoza potwierdzonej grupy dostaje karę R9.</li>
-            <li><b>Wykluczenia</b> – etykiety (lista startowa, analityk, eksplorator) i flaga kontraktu.</li>
-            <li><b>On-chain</b> – wolumen, okres aktywności, kontrahenci z etykietami, wskaźniki wyjścia do fiat.</li>
+            <li><b>Tożsamość kont</b> – ten sam nick w dwóch serwisach nie oznacza tej samej osoby. Konta łączymy w grupy tylko twardymi powiązaniami (odnośnik, wspólny e-mail/Telegram/telefon, dowód Keybase, dane wejściowe); konto spoza potwierdzonej grupy dostaje karę R9. Sam nick to więc słaba kotwica – najpewniejszym wejściem jest URL profilu, e-mail lub Telegram.</li>
+            <li><b>Wykluczenia</b> – adresy giełd, kontraktów, mikserów, kantorów i zbiórek nie są przypisywane osobie (0%), ale interakcje z nimi są odnotowywane jako wskaźniki (np. wyjście do fiat). Źródła: lista startowa, <a href="#/labels">etykiety analityka</a>, etykiety eksploratorów (Blockscout, Tronscan) i flaga kontraktu (bytecode ≠ 0x).</li>
+            <li><b>On-chain</b> – wolumen, okres aktywności, kontrahenci z etykietami, wskaźniki wyjścia do fiat (Blockscout, Esplora, TronGrid). Przepływ środków obejmuje adresy przypisane badanemu, czyli z wynikiem ≥ 40%.</li>
             <li><b>Wnioski</b> – generowane z wyników, zawsze z informacją, co należy zweryfikować.</li>
           </ol>
         </div>
@@ -67,7 +67,7 @@ export function MethodPage({ meta }: { meta: Meta }) {
           </tbody>
         </table>
         <div className="small muted" style={{ marginTop: 8 }}>
-          Aplikacja łączy się wyłącznie z hostami z białej listy ({meta.config.allowedHosts.length} pozycji) i loguje każde zapytanie. AI jest domyślnie wyłączone; po włączeniu korzysta z wymiennego, lokalnego modelu (API zgodne z OpenAI, np. Ollama) i nie zmienia wyniku.
+          Aplikacja łączy się wyłącznie z hostami z białej listy ({meta.config.allowedHosts.length} pozycji) i loguje każde zapytanie. Strona z nieznanego hosta, znaleziona w trakcie analizy, nie jest pobierana, dopóki analityk nie zatwierdzi hosta. AI jest domyślnie wyłączone; po włączeniu korzysta z wymiennego, lokalnego modelu (API zgodne z OpenAI, np. Ollama) i nie zmienia wyniku.
         </div>
       </div>
     </>

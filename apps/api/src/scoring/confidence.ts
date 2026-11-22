@@ -80,6 +80,9 @@ export const SCORING_PARAMS = {
   maxScore: 99,
 };
 
+/** Adres przypisany badanemu: niewykluczony i co najmniej przedział „średni” (40%). */
+export const isAttributed = (s: ScoreResult) => !s.excluded && s.score >= 40;
+
 function band(score: number): ScoreResult['band'] {
   if (score >= 80) return 'VERY_HIGH';
   if (score >= 60) return 'PROBABLE';

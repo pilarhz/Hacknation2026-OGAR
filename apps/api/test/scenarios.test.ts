@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isAttributed } from '../src/scoring/confidence.ts';
 
 const PORT = 4199;
 process.env.DB_PATH = ':memory:';
@@ -24,7 +25,7 @@ before(async () => {
 });
 after(() => sandbox?.kill());
 
-const run = async (seeds: { kind: 'nick' | 'address'; value: string }[]) => {
+const run = async (seeds: { kind: 'nick' | 'address' | 'url'; value: string }[]) => {
   const { runInvestigation } = await import('../src/engine/investigate.ts');
   return (await runInvestigation(seeds, { sources: ['sandbox', 'web'] })).result;
 };
@@ -81,16 +82,22 @@ test('Scenariusz 2: nick z samymi adresami giełd/zbiórek/giveaway – brak fa�
   assert.ok(r.addresses.every((a) => a.score.score <= 50));
 });
 
-test('Scenariusz 3: wyszukiwanie odwrotne – adres wejściowy → autor → kolejne ślady', async () => {
-  const r = await run([{ kind: 'address', value: '0xCfE541F7a25C5cD54277D1Dc4A2Ca6E37626ff4A' }]);
-  const nick = r.identifiers.find((i) => i.kind === 'nick' && i.value === 'cryptojanek');
+test('Scenariusz 3: wyszukiwanie odwrotne – adres TRON → autorka ogłoszenia → jej kanał i drugi adres', async () => {
+  const r = await run([{ kind: 'address', value: 'TUif3irKWRKLhzUw6yxyJNXayRqAncnCT9' }]);
+  const nick = r.identifiers.find((i) => i.kind === 'nick' && i.value === 'ola_wymiana');
   assert.ok(nick && nick.origin === 'pivot' && nick.weak);
-  const btc = find(r, 'bc1qpgfd4zxrrenlgyxvvlvrqy84a8f2h408fmfakp');
-  assert.ok(btc.score.score >= 80);
-  assert.ok(btc.score.rules.some((x) => x.code === 'R10'));
+  // adres wejściowy: ogłoszenie (70) − pivot (5) − tożsamość tylko z wyszukiwania odwrotnego (R10)
+  const trx = find(r, 'TUif3irKWRKLhzUw6yxyJNXayRqAncnCT9');
+  assert.ok(trx.score.rules.some((x) => x.code === 'R10'));
+  assert.equal(trx.score.band, 'MEDIUM');
+  assert.ok(trx.indicators.some((i) => i.code === 'OFFRAMP')); // doładowanie karty krypto-fiat
+  // drugi adres z kanału Telegram tej samej osoby
+  assert.ok(isAttributed(find(r, '0xa88e193AF8F2bF13beaD0515f635371FF4A3357d').score));
   // autor ostrzeżenia "Uwaga, scam! Nie wysyłajcie na <adres>" nie jest właścicielem adresu
   assert.ok(!r.identifiers.some((i) => i.value === 'czujny_user'));
   assert.ok(r.notes.some((n) => n.includes('czujny_user')));
+  // inne osoby z piaskownicy nie mieszają się do wyniku
+  assert.ok(!r.identifiers.some((i) => i.value === 'cryptojanek'));
 });
 
 test('Strony ujawnione w pivocie: host spoza białej listy wymaga zatwierdzenia analityka', async () => {
@@ -107,14 +114,17 @@ test('Strony ujawnione w pivocie: host spoza białej listy wymaga zatwierdzenia 
   assert.ok(!isHostAllowed('https://niezaufana-strona.example/'));
 });
 
-test('Scenariusz 4: zmiana w czasie – podmiana adresu w profilu między przebiegami', async () => {
-  const { runInvestigation } = await import('../src/engine/investigate.ts');
-  const r1 = (await runInvestigation([{ kind: 'nick', value: 'cryptojanek' }], { sources: ['sandbox'] })).result;
+test('Scenariusz 4: monitoring URL profilu – podmiana adresu, a z nowego adresu wpłata na giełdę', async () => {
+  const seeds = [{ kind: 'url' as const, value: `http://127.0.0.1:${PORT}/s/kodhub.example/marek_dev` }];
+  const r1 = await run(seeds);
   await fetch(`http://127.0.0.1:${PORT}/__admin/period?value=2`, { method: 'POST' });
-  const r2 = (await runInvestigation([{ kind: 'nick', value: 'cryptojanek' }], { sources: ['sandbox'] })).result;
+  const r2 = await run(seeds);
   await fetch(`http://127.0.0.1:${PORT}/__admin/period?value=1`, { method: 'POST' });
-  const profile = (r: typeof r1) => new Set(r.addresses.filter((a) => a.evidence.some((e) => e.url.includes('kodhub'))).map((a) => a.address));
-  assert.ok(profile(r1).has('bc1qpgfd4zxrrenlgyxvvlvrqy84a8f2h408fmfakp'));
-  assert.ok(profile(r2).has('bc1q9tuvwnq9s56nhkagcrvrzxhj7dwzfvdnvjufu8'));
-  assert.ok(!profile(r2).has('bc1qpgfd4zxrrenlgyxvvlvrqy84a8f2h408fmfakp'));
+  const V1 = 'bc1ql8ur7j730hwtyn3jfwxcvwwwyqttksaln6tal8';
+  const V2 = 'bc1q3nvmyp6hwzzyyjda3w0dvvvqp8h4vcku6huhnw';
+  assert.deepEqual(r1.addresses.map((a) => a.address), [V1]);
+  assert.deepEqual(r2.addresses.map((a) => a.address), [V2]);
+  assert.equal(find(r2, V2).score.band, 'VERY_HIGH'); // własny profil
+  assert.equal(r1.stats.cashOutSignals, 0);
+  assert.ok(find(r2, V2).indicators.some((i) => i.code === 'CEX_OUTFLOW'));
 });
