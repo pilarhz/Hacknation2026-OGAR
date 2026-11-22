@@ -19,19 +19,34 @@ Osoby zarabiające na kryptowalutach publikują adresy portfeli na forach, w pro
 
 **Spis treści**
 
-1. [Uruchomienie](#uruchomienie)
-2. [Scenariusze testowe](#scenariusze-testowe)
-3. [Zrzuty ekranu](#zrzuty-ekranu)
-4. [Jak to działa](#jak-to-działa)
-5. [Wskaźnik Pewności](#wskaźnik-pewności)
-6. [Wykluczenia i wyjście do fiat](#wykluczenia-i-wyjście-do-fiat)
-7. [Raport](#raport)
-8. [Parametry wyszukiwania](#parametry-wyszukiwania)
-9. [AI (opcjonalnie)](#ai-opcjonalnie)
-10. [Architektura i bezpieczeństwo](#architektura-i-bezpieczeństwo)
-11. [Zgodność z wymaganiami](#zgodność-z-wymaganiami)
-12. [Licencje](#licencje)
-13. [Ograniczenia](#ograniczenia)
+1. [Założenia](#założenia)
+2. [Uruchomienie](#uruchomienie)
+3. [Scenariusze testowe](#scenariusze-testowe)
+4. [Zrzuty ekranu](#zrzuty-ekranu)
+5. [Jak to działa](#jak-to-działa)
+6. [Wskaźnik Pewności](#wskaźnik-pewności)
+7. [Wykluczenia i wyjście do fiat](#wykluczenia-i-wyjście-do-fiat)
+8. [Raport](#raport)
+9. [Parametry wyszukiwania](#parametry-wyszukiwania)
+10. [AI (opcjonalnie)](#ai-opcjonalnie)
+11. [Architektura i bezpieczeństwo](#architektura-i-bezpieczeństwo)
+12. [Zgodność z wymaganiami](#zgodność-z-wymaganiami)
+13. [Licencje](#licencje)
+14. [Ograniczenia](#ograniczenia)
+
+---
+
+## Założenia
+
+- **Tylko jawne źródła (OSINT).** Narzędzie korzysta wyłącznie z publicznie dostępnych stron i API, bez logowania na cudze konta i bez obchodzenia zabezpieczeń. Źródeł wymagających logowania nie przeszukujemy.
+- **Przypisanie tylko na podstawie autorstwa.** Adres jest przypisany badanemu tylko wtedy, gdy opublikował go badany. Konta łączymy wyłącznie twardymi dowodami (jawny odnośnik, wspólny e-mail, Telegram lub telefon, dowód Keybase). Sam zgodny nick to za mało: skutkuje karą R9.
+- **Lepiej nie przypisać niż przypisać błędnie.** Adresy giełd, kontraktów, mikserów, zbiórek i kantorów są wykluczane (0%), ale interakcja z nimi zostaje odnotowana w raporcie.
+- **Wynik jest jawny, powtarzalny i wyjaśnialny.** Wskaźnik Pewności liczy wyłącznie kod regułowy: ten sam materiał zawsze daje ten sam wynik, a każdy punkt to nazwana reguła ze wskazaniem dowodu.
+- **Wskaźnik to ocena, nie dowód.** Maksimum to 99%, próg przypisania 40%, a każdy wniosek w raporcie wskazuje, co analityk musi jeszcze zweryfikować.
+- **AI tylko pomocniczo.** AI jest domyślnie wyłączone, działa lokalnie, da się je wymienić przez API zgodne z OpenAI i nigdy nie zmienia Wskaźnika Pewności.
+- **Odtwarzalność i ciągłość dowodowa.** Każdy dokument jest zapisany z URL-em, czasem pobrania i SHA-256, a każde zapytanie trafia do rejestru. Przebiegów nie usuwa się: błędny przebieg analityk unieważnia z podaniem powodu.
+- **Gotowość do pracy w KAS.** Całość działa lokalnie, bez publicznej chmury. Ruch sieciowy jest ograniczony do białej listy hostów, a dane testowe i wyniki nie trafiają do niezatwierdzonych usług.
+- **Sprawdzalność na danych syntetycznych.** Scenariusze testowe działają na fikcyjnych danych z piaskownicy, więc każdy może odtworzyć oczekiwane wyniki.
 
 ---
 
@@ -286,7 +301,7 @@ Limity i zabezpieczenia:
 | Raport: fakty / obliczenia / wnioski, chronologia przepływu środków | **Raport OSINT** + **mapa powiązań** (graf: wejście → pivot → źródła → adresy → usługi) |
 | Dalsza rozbudowa | interfejs źródeł, wspólny kod EVM, [TECHNICZNE.md](docs/TECHNICZNE.md#rozbudowa) |
 | Scenariusze na danych syntetycznych | piaskownica (5 scenariuszy) + 52 testy automatyczne |
-| README: opis, założenia, instalacja, przykłady | ten plik: [Uruchomienie](#uruchomienie), [Zrzuty ekranu](#zrzuty-ekranu), [film](https://youtu.be/cw-VEzpwTSo) |
+| README: opis, założenia, instalacja, przykłady | ten plik: [Założenia](#założenia), [Uruchomienie](#uruchomienie), [Zrzuty ekranu](#zrzuty-ekranu), [film](https://youtu.be/cw-VEzpwTSo) |
 | Node.js, React, PostgreSQL, open source, monorepo | tak |
 | Łatwa wymiana modelu AI, uruchamianie lokalne | API zgodne z OpenAI, Ollama |
 | Brak wysyłki danych do niezatwierdzonych usług | biała lista hostów |
