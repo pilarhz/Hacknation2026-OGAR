@@ -240,7 +240,6 @@ button.cta-back { height: 42px; padding: 0 20px; gap: 8px; font-weight: 700; tex
 .doc-h { display: flex; align-items: baseline; gap: 10px; font-size: 17px; font-weight: 600; margin: 30px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line-2); }
 .doc-h:first-child { margin-top: 0; }
 .doc-h .n { color: var(--brand); font-family: var(--font-mono); font-size: 18px; font-variant-numeric: tabular-nums; }
-.doc-h .aside { margin-left: auto; font-size: 13px; font-weight: 400; color: var(--muted); }
 
 /* ---------- panele ---------- */
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 16px; }
@@ -339,8 +338,6 @@ tr.cashout td { background: var(--danger-bg); }
 .kpi span { color: var(--muted); font-size: 12.5px; }
 .kpi.alert b { color: var(--danger); }
 .kpi.good b { color: var(--primary); }
-.meta-line { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 13px; margin: 10px 2px 0; }
-.meta-line b { color: var(--ink-2); font-weight: 700; }
 
 /* wniosek główny */
 .verdict { display: grid; grid-template-columns: auto 1fr; gap: 22px; align-items: center; padding: 20px 24px; border-radius: var(--radius-sm); border: 1px solid var(--danger-line); border-left: 6px solid var(--danger); background: var(--danger-bg); }

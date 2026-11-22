@@ -47,10 +47,11 @@ test('Scenariusz 1: nick → profil, strona, P2P, Telegram, e-mail; ocena i cash
   const btc = find(r, 'bc1qpgfd4zxrrenlgyxvvlvrqy84a8f2h408fmfakp');
   assert.equal(btc.score.score, 99);
   assert.ok(btc.score.independentSites.length >= 2);
-  // forum: 50 − R9 (sam nick) + R7 (transakcje z adresem P2P) = 40
+  // forum: 50 + R7 (transakcje z adresem P2P); powiązanie on-chain znosi karę R9 za sam nick = 55
   const forum = find(r, '0x7B431cddF8855cAd9946aB62557E5EE893b92D83');
   assert.ok(forum.score.rules.some((x) => x.code === 'R9'));
-  assert.equal(forum.score.score, 40);
+  assert.equal(forum.score.score, 55);
+  assert.equal(forum.score.rules.find((x) => x.code === 'R9')!.value, 0);
   // ogłoszenie P2P → 70, wskaźniki wyjścia do fiat
   const p2p = find(r, '0xCfE541F7a25C5cD54277D1Dc4A2Ca6E37626ff4A');
   assert.equal(p2p.score.band, 'PROBABLE');

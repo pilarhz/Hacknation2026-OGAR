@@ -128,5 +128,8 @@ test('R10: tożsamość wywnioskowana tylko z publikacji adresu wejściowego →
 test('Wynik jest deterministyczny i każda składowa jest nazwaną regułą', () => {
   const input = [ev(), ev({ docId: 'D2', site: 'x.example' })];
   assert.deepEqual(score(input), score(input));
-  for (const r of score(input).rules) assert.match(r.code, /^[A-Z]\d/);
+  const r = score(input);
+  for (const x of r.rules) assert.match(x.code, /^([A-Z]\d|MAX$)/);
+  // składowe sumują się do wyniku (limit 99 jest jawnym wierszem MAX)
+  assert.equal(r.rules.reduce((a, x) => a + x.value, 0), r.score);
 });

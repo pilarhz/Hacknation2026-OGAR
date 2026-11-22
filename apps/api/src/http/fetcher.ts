@@ -30,10 +30,11 @@ export interface RunScope {
   approvedHosts: Set<string>;
   cacheSince: number;
 }
-const runScope = new AsyncLocalStorage<RunScope>();
+// Pamięć przebiegu: ten sam URL pobierany jest raz na przebieg (także z piaskownicy, która nie trafia do cache w bazie).
+const runScope = new AsyncLocalStorage<RunScope & { memo: Map<string, FetchResult> }>();
 
 export function withRunScope<T>(scope: RunScope, fn: () => Promise<T>): Promise<T> {
-  return runScope.run(scope, fn);
+  return runScope.run({ ...scope, memo: new Map() }, fn);
 }
 
 /** Dopuszcza host w bieżącym przebiegu (np. strona podana przez analityka w danych wejściowych). */
@@ -78,6 +79,12 @@ export async function fetchText(
     throw new FetchBlockedError(`Host spoza białej listy: ${url}`);
   }
   const useCache = opts.useCache ?? true;
+  const memo = runScope.getStore()?.memo; // niezależnie od useCache: w obrębie przebiegu każdy URL raz
+  const hit = memo?.get(url);
+  if (hit) {
+    opts.log?.push({ ts: now(), url, status: hit.status, cache: true, ms: 0 });
+    return { ...hit, fromCache: true };
+  }
   const local = /^(127\.0\.0\.1|localhost)$/.test(new URL(url).hostname);
   if (useCache && !local) {
     const row = await db().one<{ fetched_at: unknown; status: number; content_type: string; body: string }>('SELECT * FROM http_cache WHERE url = $1', [url]);
@@ -85,7 +92,9 @@ export async function fetchText(
     const fetched = row ? Date.parse(fetchedAt) : 0;
     if (row && Date.now() - fetched < config.cacheTtlMinutes * 60_000 && fetched >= currentCacheSince()) {
       opts.log?.push({ ts: now(), url, status: row.status, cache: true, ms: 0 });
-      return { url, status: row.status, contentType: row.content_type, body: row.body, fetchedAt, fromCache: true };
+      const r = { url, status: row.status, contentType: row.content_type, body: row.body, fetchedAt, fromCache: true };
+      memo?.set(url, r);
+      return r;
     }
   }
   const host = new URL(url).hostname;
@@ -112,7 +121,9 @@ export async function fetchText(
         [url, fetchedAt, res.status, contentType, body],
       );
     }
-    return { url, status: res.status, contentType, body, fetchedAt, fromCache: false };
+    const r = { url, status: res.status, contentType, body, fetchedAt, fromCache: false };
+    if (res.ok) memo?.set(url, r);
+    return r;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     opts.log?.push({ ts: now(), url, status: `ERROR: ${msg}`, cache: false, ms: Date.now() - started });

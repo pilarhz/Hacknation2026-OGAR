@@ -31,7 +31,6 @@ Ktoś sprzedaje kryptowaluty na forum, ma portfel w profilu na GitHubie i podaje
 - [Raport](#raport)
 - [Parametry wyszukiwania i źródła](#parametry-wyszukiwania-i-źródła)
 - [AI (opcjonalnie)](#ai-opcjonalnie)
-- [Inne sposoby uruchomienia](#inne-sposoby-uruchomienia)
 - [Architektura](#architektura)
 - [Bezpieczeństwo](#bezpieczeństwo)
 - [Rozbudowa](#rozbudowa)
@@ -66,8 +65,8 @@ Baza PostgreSQL uruchamia się sama w procesie Node ([PGlite](https://pglite.dev
 2. W sekcji **Scenariusze demonstracyjne** wybierz **scenariusz 1** (nick `cryptojanek`) i kliknij **Uruchom analizę**. Analiza trwa kilka sekund.
 3. Na zakładce **Podsumowanie** powinieneś zobaczyć:
    - wniosek główny: adres BTC z wynikiem **99%**,
-   - **4 adresy przypisane** badanemu, **2 wykluczone** (Binance i kontrakt USDT) i **5 sygnałów wyjścia do fiat**.
-4. Kliknij adres, a potem **Zobacz dowody i wyliczenie**. Zobaczysz, skąd wziął się wynik, reguła po regule, oraz cytat ze źródła.
+   - **4 adresy przypisane** badanemu, **2 wykluczone** (Binance i kontrakt USDT) i **4 sygnały wyjścia do fiat**.
+4. Kliknij adres w tabeli „Adresy powiązane z badanym”. Zobaczysz, skąd wziął się wynik, reguła po regule, oraz cytat ze źródła.
 5. Przejrzyj pozostałe zakładki:
    - **Mapa powiązań**: jak OGAR przeszedł od nicku do kolejnych kont i adresów,
    - **Przepływ środków**: transakcje w kolejności czasu, z podświetlonym wyjściem do fiat,
@@ -81,6 +80,8 @@ Baza PostgreSQL uruchamia się sama w procesie Node ([PGlite](https://pglite.dev
 npm test            # 35 testów: adresy i sumy kontrolne, identyfikatory, reguły punktacji, scenariusze 1–4, baza danych
 npm run typecheck   # kontrola typów TypeScript
 ```
+
+Inne sposoby uruchomienia (Docker, wersja produkcyjna, własny serwer PostgreSQL) opisuje [docs/TECHNICZNE.md](docs/TECHNICZNE.md#sposoby-uruchomienia).
 
 ---
 
@@ -108,9 +109,10 @@ Każdy scenariusz to **inna osoba, inny typ danych wejściowych i inna umiejętn
 **1. Jan Testowy: pełna ścieżka od nicka.** Wpisujesz `cryptojanek`. OGAR przechodzi przez profil, stronę WWW, ogłoszenie P2P, kanał Telegram i listę mailingową, a po drodze sam znajduje e-mail i Telegram. Spodziewaj się:
 - 5 kont połączonych w jedną osobę,
 - BTC z profilu **99%** (synergia 4 serwisów),
-- ETH z ogłoszenia **70%** (wpłata na giełdę, kantor, zamiana na USDT, mikser),
+- ETH z ogłoszenia **70%** (wpłata na giełdę, kantor, mikser; zamiana na USDT odnotowana, ale nie liczona jako wyjście do fiat),
 - TRON z Telegrama **65%**,
-- adres z forum **40%** i z giveaway **10%** (konta połączone tylko nickiem),
+- adres z forum **55%**: konto łączy z badanym tylko nick, ale adres ma bezpośrednie transakcje z adresem z ogłoszenia, co znosi karę,
+- adres z giveaway **10%** (konto połączone tylko nickiem),
 - Binance i kontrakt USDT **0%**,
 - adres innej osoby w wątku bez przypisania,
 - literówka w adresie ETH odrzucona.
@@ -144,12 +146,12 @@ Każdy scenariusz to **inna osoba, inny typ danych wejściowych i inna umiejętn
 Scenariusz 1, wynik prosto z silnika (bez UI):
 
 ```
-dokumenty: 7 · identyfikatory: 3 · adresy: 9 · przypisane: 4 · wykluczone: 2 · sygnały cash-out: 5
+dokumenty: 7 · identyfikatory: 3 · adresy: 9 · przypisane: 4 · wykluczone: 2 · sygnały cash-out: 4
 
  99%  BTC  bc1qpgfd4zxr…  80–99% · BARDZO WYSOKIE PRAWDOPODOBIEŃSTWO  [cash-out: CEX_OUTFLOW]
- 70%  ETH  0xCfE541F7a2…  60–79% · PRAWDOPODOBNY  [cash-out: CEX_OUTFLOW, OFFRAMP, STABLECOIN_SWAP]
+ 70%  ETH  0xCfE541F7a2…  60–79% · PRAWDOPODOBNY  [cash-out: CEX_OUTFLOW, OFFRAMP] [mikser]
  65%  TRX  TXLFKvqCJRzY…  60–79% · PRAWDOPODOBNY  [cash-out: OFFRAMP]
- 40%  ETH  0x7B431cddF8…  40–59% · ŚREDNI (wymaga potwierdzenia drugim śladem)
+ 55%  ETH  0x7B431cddF8…  40–59% · ŚREDNI (drugi ślad: powiązanie on-chain)
  10%  ETH  0x18b30Ed558…  10–39% · NISKI / SZUM
   5%  ETH  0xeCd180Ba67…  <10% · BRAK PRZYPISANIA (adres opublikowany przez inną osobę)
   5%  ETH  0x149bCE5c44…  <10% · BRAK PRZYPISANIA (adres opublikowany przez inną osobę)
@@ -161,7 +163,8 @@ wyliczenie bc1qpgfd4zxr…:
   R4    +5  Konto zweryfikowane w serwisie
   R6   +15  Synergia śladów: adres w 4 niezależnych źródłach
             (kodhub.example, janek-testowy.example, p2p-rynek.example, lista-mailingowa.example)
-  = 99%  (suma 110, ale wskaźnik nigdy nie przekracza 99% – to prawdopodobieństwo, nie pewność)
+  MAX  −11  Limit wskaźnika: maksymalnie 99%
+  = 99%
 ```
 
 ---
@@ -254,12 +257,14 @@ Wskaźnik mówi, **jak bardzo prawdopodobne jest, że adres należy do badanej o
 | R3a / R3b | Nick zgodny dopiero po normalizacji / tylko częściowo | −5 / −15 |
 | R5 | Adres tylko w archiwalnej wersji strony | −10 |
 | R8 | ≥ 5000 transakcji, czyli raczej usługa niż osoba | −20 |
-| R9 | Konto łączy z badanym **tylko zgodny nick** | −15 |
+| R9 | Konto łączy z badanym **tylko zgodny nick** (kary nie ma, gdy adres ma transakcje z innym adresem badanego – R7) | −15 |
 | R10 | Autora ustalono wyłącznie przez wyszukiwanie odwrotne adresu | −10 |
 
 Za próg przypisania badanemu przyjmujemy **40%** (przedział „średni” i wyżej).
 
-Przykład ze scenariusza 1, adres ETH z forum: `R1 forum 50 − R9 konto łączy z badanym tylko nick 15 + R7 transakcje z adresem z ogłoszenia 5 = 40%`.
+Wynik powyżej 99% jest obcinany jawnym wierszem **MAX**, więc składowe zawsze sumują się do wyniku. Powiązanie on-chain (R7) jest drugim, niezależnym śladem, więc **znosi karę R9** za konto połączone tylko nickiem.
+
+Przykład ze scenariusza 1, adres ETH z forum: `R1 forum 50 + R7 transakcje z adresem z ogłoszenia 5 (R9 zniesiona) = 55%`.
 
 ---
 
@@ -288,7 +293,7 @@ Każdy przebieg pobiera dane na nowo. Cache działa tylko w obrębie jednego prz
 |---|---|---|
 | `CEX_OUTFLOW` | wpłata na giełdę (zwykle przed sprzedażą; giełda zna klienta, KYC) | ✔ |
 | `OFFRAMP` | kantor, bramka krypto-fiat, karta, P2P | ✔ |
-| `STABLECOIN_SWAP` | zamiana na stablecoin przez DEX (od 1000 USD) | ✔ |
+| `STABLECOIN_SWAP` | zamiana na stablecoin przez DEX (od 1000 USD); to wymiana krypto–krypto, a te same środki zwykle trafiają potem na giełdę, więc nie liczymy ich drugi raz | – |
 | `STABLECOIN_FLOW` | duże przepływy stablecoinów | – |
 | `MIXER` | mikser (zacieranie pochodzenia) | – |
 | `LINKED_ADDRESS` | transakcje z innym adresem badanego | – |
@@ -302,14 +307,16 @@ Każdy sygnał wskazuje konkretne transakcje. Zakładka **Przepływ środków** 
 
 Przycisk **Raport OSINT** (`GET /api/runs/{id}/report.html`) otwiera raport do druku lub zapisu jako PDF. Raport ma osiem części:
 
-1. Parametry wyszukiwania i konfiguracja
-2. Podsumowanie w liczbach
-3. **Fakty źródłowe:** dla każdego adresu URL, serwis, autor, data publikacji i pobrania, cytat, podstawa przypisania
-4. **Wyniki obliczeń:** Wskaźnik Pewności reguła po regule i dane on-chain z nazwą dostawcy
-5. **Chronologia przepływu środków**
-6. **Wnioski do weryfikacji:** każdy z uzasadnieniem i wskazaniem, co sprawdzić
-7. Ścieżka identyfikatorów (pivot)
-8. **Dane do odtworzenia analizy:**
+1. **Parametry wyszukiwania:** dane wejściowe, źródła, głębokość, dostawcy on-chain, AI, biała lista hostów
+2. **Podsumowanie** w liczbach
+3. **Adresy:** dla każdego adresu osobno
+   - **fakty źródłowe:** URL, serwis, autor, data publikacji i pobrania, cytat, podstawa przypisania,
+   - **wyniki obliczeń:** Wskaźnik Pewności reguła po regule i dane on-chain z nazwą dostawcy
+4. **Chronologia przepływu środków**
+5. **Wnioski do weryfikacji:** każdy z podstawą i wskazaniem, co sprawdzić
+6. **Konta badanego** i uzasadnienie, dlaczego uznano je za jedną osobę
+7. **Ścieżka identyfikatorów** (pivot)
+8. **Metadane do odtworzenia analizy:**
    - SHA-256 każdego dokumentu (pełna treść jest w bazie),
    - odrzuceni kandydaci,
    - parametry algorytmu,
@@ -367,87 +374,25 @@ Kilka szczegółów:
 
 ---
 
-## Inne sposoby uruchomienia
-
-**Wersja produkcyjna w jednym procesie** (API serwuje zbudowany frontend na http://127.0.0.1:8080):
-
-```bash
-npm run sandbox &   # tylko jeśli chcesz scenariusze testowe
-npm start
-```
-
-**Docker z serwerem PostgreSQL 17** (przetestowane: scenariusz 1 od początku do końca, dane przetrwały restart):
-
-```bash
-docker compose up --build   # postgres + API :8080 + piaskownica :4100
-```
-
-- Hasło bazy domyślnie to `ogar_lokalnie`. Poza demem ustaw `POSTGRES_PASSWORD`.
-- Port bazy nie wychodzi poza sieć kontenerów.
-- Linki do stron piaskownicy w wynikach wskazują `http://sandbox:4100`, czyli adres wewnątrz Dockera, więc nie otworzą się w przeglądarce. Sama analiza działa.
-
-**Docker z AI:** odkomentuj w `docker-compose.yml` usługę `ollama`, wolumen `ollama` i zmienne `AI_*`, a po starcie wpisz `docker compose exec ollama ollama pull qwen2.5:3b`. Przetestowane: odpowiedź modelu w ~3 s na CPU.
-
-**Własny serwer PostgreSQL:** ustaw `DATABASE_URL=postgres://…`. Schemat i zapytania są te same co w trybie wbudowanym. Ten sam test bazy przechodzi w obu trybach:
-
-```bash
-DATABASE_URL=postgres://ogar:haslo@127.0.0.1:5432/ogar node --test apps/api/test/store.test.ts
-```
-
----
-
 ## Architektura
 
-Jedno repozytorium (npm workspaces), trzy aplikacje:
+Jedno repozytorium (monorepo), trzy aplikacje:
 
-```
-apps/
-  api/        Node.js + TypeScript (bez kroku kompilacji), Fastify 5
-    src/
-      extract/      wyciąganie i walidacja adresów (Base58Check, Bech32/m, EIP-55) oraz identyfikatorów
-      sources/      źródła Web2 – wspólny interfejs Source + rejestr (registry.ts)
-      chain/        dostawcy blockchain, etykiety, wskaźniki on-chain
-      scoring/      kontekst publikacji (K1–K8) i Wskaźnik Pewności (R1–R10, E1–E2)
-      engine/       investigate.ts – przebieg analizy; identity.ts – łączenie kont;
-                    store.ts – sprawy, przebiegi, harmonogram, porównania, kosz
-      ai/           wymienny dostawca AI (API zgodne z OpenAI)
-      report/       raport HTML
-      http/         fetcher.ts – jedyne wyjście do sieci: biała lista, limit tempa, cache, rejestr
-      db/           PostgreSQL: serwer (pg) albo wbudowany (PGlite) – te same zapytania
-    data/       labels.json (etykiety startowe), chain-fixtures.json (transakcje syntetyczne)
-    test/       35 testów (node:test)
-  web/        React 19 + Vite – interfejs analityka
-  sandbox/    fikcyjny internet do scenariuszy testowych
-```
-
-**Model danych** ([`db.ts`](apps/api/src/db/db.ts)):
-- `investigations`: sprawa, czyli identyfikatory, parametry i harmonogram,
-- `runs`: przebieg z pełnym wynikiem w `JSONB`,
-- `documents`: treść i SHA-256 każdego pobranego dokumentu,
-- pomocnicze: `http_cache`, `chain_cache`, `custom_labels`, `audit_log`.
-
-Usunięcie sprawy kasuje kaskadowo jej przebiegi i dokumenty. Najpierw sprawa trafia na 30 dni do kosza. Harmonogram rezerwuje przebieg atomowo, więc przy kilku instancjach API analiza nie uruchomi się dwa razy.
-
-**API REST** (wszystkie ścieżki pod `/api`):
-
-| Metoda | Ścieżka | Do czego |
+| Aplikacja | Technologia | Rola |
 |---|---|---|
-| GET | `/meta` | źródła, typy identyfikatorów, parametry punktacji, konfiguracja |
-| GET / POST | `/investigations` | lista spraw / nowa sprawa |
-| GET / PUT / DELETE | `/investigations/{id}` | szczegóły z przebiegami / poprawa parametrów / do kosza |
-| POST | `/investigations/{id}/runs` | nowy przebieg |
-| PUT | `/investigations/{id}/schedule` | harmonogram `{minutes}` |
-| POST | `/investigations/{id}/approved-hosts` | zatwierdzenie hosta strony z pivotu |
-| GET | `/runs/{id}` | pełny wynik przebiegu |
-| POST | `/runs/{id}/invalidate` · `/revalidate` | oznaczenie przebiegu jako błędny / cofnięcie |
-| GET | `/runs/{id}/report.html` · `export.json` · `export.csv` | raport i eksport |
-| GET | `/runs/{id}/documents/{docId}` | zapisana treść dokumentu |
-| GET | `/compare?a={runId}&b={runId}` | porównanie dwóch przebiegów |
-| GET / POST / DELETE | `/trash`, `/trash/{id}/restore`, `/trash/{id}` | kosz |
-| GET / POST | `/labels` | etykiety adresów |
-| POST | `/extract` | wyciągnięcie adresów i identyfikatorów z wklejonego tekstu |
-| GET | `/audit` | dziennik zdarzeń |
-| POST | `/login` | logowanie tokenem (gdy ustawiony `API_TOKEN`) |
+| `apps/api` | Node.js + TypeScript, Fastify 5, PostgreSQL | silnik analizy, punktacja, harmonogram, raport, REST API |
+| `apps/web` | React 19 + Vite | interfejs analityka |
+| `apps/sandbox` | Node.js | fikcyjny internet do scenariuszy testowych |
+
+Baza to PostgreSQL w jednym z dwóch trybów, z tymi samymi zapytaniami:
+- **wbudowany** (PGlite): do demo i pracy lokalnej, nic nie trzeba instalować,
+- **serwer** (`DATABASE_URL`): docelowo w KAS.
+
+Całość można też uruchomić w Dockerze:
+
+```bash
+docker compose up --build   # PostgreSQL 17 + API :8080 + piaskownica :4100
+```
 
 **Docelowo w KAS:**
 - serwer PostgreSQL w infrastrukturze KAS,
@@ -455,6 +400,8 @@ Usunięcie sprawy kasuje kaskadowo jej przebiegi i dokumenty. Najpierw sprawa tr
 - własna instancja SearXNG jako wyszukiwarka,
 - logowanie przez SSO KAS przed API (`API_TOKEN` to tylko zabezpieczenie prototypu),
 - kolejka zadań przy wielu analitykach.
+
+> Szczegóły techniczne, czyli inne sposoby uruchomienia (produkcja, Docker z AI, własny PostgreSQL), struktura katalogów, model danych, pełna lista tras API i instrukcja rozbudowy, są w **[docs/TECHNICZNE.md](docs/TECHNICZNE.md)**.
 
 ---
 
@@ -479,10 +426,16 @@ Usunięcie sprawy kasuje kaskadowo jej przebiegi i dokumenty. Najpierw sprawa tr
 
 ## Rozbudowa
 
-- **Nowe źródło:** plik w `apps/api/src/sources/` z interfejsem `Source` (`id`, `accepts`, `search()`) i jeden wpis w [`registry.ts`](apps/api/src/sources/registry.ts).
-- **Nowa sieć blockchain:** wzorzec adresu w `extract/addresses.ts` i dostawca w `chain/providers.ts`. Dla Polygon, Arbitrum czy Base wystarczy inny `BLOCKSCOUT_URL`, bo kod jest ten sam co dla ETH.
-- **Nowe etykiety:** w UI (*Etykiety adresów*) albo w `data/labels.json`.
-- **Nowe reguły:** `scoring/context.ts` (słowa kluczowe), `scoring/confidence.ts` (wagi w `SCORING_PARAMS`).
+OGAR jest zbudowany tak, żeby łatwo dokładać kolejne elementy:
+
+| Co dodajesz | Jak |
+|---|---|
+| Nowe źródło danych | jeden plik z interfejsem `Source` i jeden wpis w rejestrze źródeł |
+| Nowa sieć blockchain | wzorzec adresu i dostawca danych. Sieci EVM (Polygon, Arbitrum, Base) obsłuży ten sam kod co Ethereum, wystarczy inny adres eksploratora |
+| Nowe etykiety giełd i kantorów | w UI albo w pliku `labels.json` |
+| Nowe reguły punktacji | słowa kluczowe i wagi są w dwóch plikach, a *Metodyka* w UI pokazuje je automatycznie |
+
+Instrukcja krok po kroku jest w [docs/TECHNICZNE.md](docs/TECHNICZNE.md#rozbudowa).
 
 ---
 
@@ -494,9 +447,10 @@ Usunięcie sprawy kasuje kaskadowo jej przebiegi i dokumenty. Najpierw sprawa tr
 | Wyszukiwanie powiązań w otwartych źródłach | źródła Web2 i pivot ([Jak to działa](#jak-to-działa)) |
 | Kategoryzacja i Wskaźnik Pewności z własnym algorytmem | K1–K8 + R1–R10 ([Wskaźnik Pewności](#wskaźnik-pewności)) |
 | Rozpoznawanie i wyodrębnianie adresów z tekstu | walidacja sum kontrolnych + zakładka **Ekstraktor adresów** |
-| Wskaźniki wyjścia do fiat | `CEX_OUTFLOW`, `OFFRAMP`, `STABLECOIN_SWAP` ([On-chain](#on-chain-i-wyjście-do-fiat)) |
+| Wskaźniki wyjścia do fiat | `CEX_OUTFLOW`, `OFFRAMP`, a także zamiana na stablecoiny i mikser jako sygnały pomocnicze ([On-chain](#on-chain-i-wyjście-do-fiat)) |
 | Odrzucanie giełd, kontraktów, adresów instytucjonalnych | E1 (etykiety), E2 (bytecode), R8 |
 | Cykliczne analizy, zapis wyników, porównanie | harmonogram, historia przebiegów, zakładka **Zmiany w czasie** |
+| Dalsza rozbudowa: nowe źródła, sieci blockchain, mechanizmy analityczne | [Rozbudowa](#rozbudowa), [docs/TECHNICZNE.md](docs/TECHNICZNE.md#rozbudowa) |
 | *(opcjonalne)* Wykrywanie podmiany adresów w czasie | scenariusz 4 (monitoring), Wayback Machine |
 | Źródło, URL, data pobrania i metadane do odtworzenia | zakładka **Źródła**, SHA-256, rejestr zapytań, raport cz. 8 |
 | Raport: fakty / obliczenia / wnioski, czytelny bez wiedzy IT | **Raport OSINT** |

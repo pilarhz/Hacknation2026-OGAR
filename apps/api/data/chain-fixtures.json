@@ -2,7 +2,7 @@
   "_comment": "SYNTETYCZNE dane on-chain dla fikcyjnych adresów z piaskownicy testowej (apps/sandbox). Adresy wygenerowano deterministycznie z sha256 (scripts/gen-synthetic-addresses.ts) – nie należą do nikogo. Hashe transakcji mają prefiks SYN.",
   "addresses": {
     "ETH:0xcfe541f7a25c5cd54277d1dc4a2ca6e37626ff4a": {
-      "balance": 0.12,
+      "balance": 0.2,
       "txs": [
         { "hash": "SYN-ETH-0001", "time": "2026-02-14T10:21:00Z", "direction": "in", "counterparty": "0x585EA6DAcc2597bB527e9C8DDba7538211a103e2", "asset": "ETH", "amount": 2.5 },
         { "hash": "SYN-ETH-0002", "time": "2026-02-20T18:02:00Z", "direction": "in", "counterparty": "0x7B431cddF8855cAd9946aB62557E5EE893b92D83", "asset": "ETH", "amount": 1.1 },
@@ -15,7 +15,7 @@
       ]
     },
     "ETH:0x7b431cddf8855cad9946ab62557e5ee893b92d83": {
-      "balance": 0.08,
+      "balance": 0.1,
       "txs": [
         { "hash": "SYN-ETH-0101", "time": "2026-01-30T12:00:00Z", "direction": "in", "counterparty": "0x28C6c06298d514Db089934071355E5743bf21d60", "asset": "ETH", "amount": 1.2 },
         { "hash": "SYN-ETH-0002", "time": "2026-02-20T18:02:00Z", "direction": "out", "counterparty": "0xCfE541F7a25C5cD54277D1Dc4A2Ca6E37626ff4A", "asset": "ETH", "amount": 1.1 }

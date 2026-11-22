@@ -47,20 +47,23 @@ function normUrl(u: string): string {
   }
 }
 
-function identifierTokens(i: Identifier, siteOf: (url: string) => string): string[] {
+/** Token do porównań (znormalizowany) + czytelna postać do uzasadnień w raporcie. */
+type Token = [token: string, label: string];
+
+function identifierTokens(i: Identifier, siteOf: (url: string) => string): Token[] {
   const v = i.value.trim();
   switch (i.kind) {
     case 'email':
-      return [`email:${v.toLowerCase()}`];
+      return [[`email:${v.toLowerCase()}`, `e-mail ${v}`]];
     case 'telegram':
-      return [`telegram:${normalizeHandle(v)}`];
+      return [[`telegram:${normalizeHandle(v)}`, `Telegram @${v.replace(/^@/, '')}`]];
     case 'phone':
-      return [`phone:${v.replace(/\D/g, '').slice(-9)}`];
+      return [[`phone:${v.replace(/\D/g, '').slice(-9)}`, `telefon ${v}`]];
     case 'url':
-      return [`url:${normUrl(v)}`, `site:${siteOf(v)}`];
+      return [[`url:${normUrl(v)}`, v], [`site:${siteOf(v)}`, `strona ${siteOf(v)}`]];
     case 'social': {
       const h = handleFromSocial(v);
-      return [`url:${normUrl(v)}`, ...(h ? [`handle:${normalizeHandle(h)}@${siteOf(v)}`] : [])];
+      return [[`url:${normUrl(v)}`, v], ...(h ? [[`handle:${normalizeHandle(h)}@${siteOf(v)}`, `konto ${h} (${siteOf(v)})`] as Token] : [])];
     }
     default:
       return [];
@@ -93,27 +96,35 @@ export function buildIdentity(
   const identity = new Map<string, Set<string>>();
   const exposed = new Map<string, Set<string>>();
   const meta = new Map<string, { site: string; handle: string; urls: Set<string> }>();
+  const shown = new Map<string, string>();
+  const add = (set: Set<string>, [t, label]: Token) => {
+    set.add(t);
+    if (!shown.has(t)) shown.set(t, label);
+  };
+  const show = (t: string) => shown.get(t) ?? t;
+  const acc = (k: string) => (meta.has(k) ? `${meta.get(k)!.site} / ${meta.get(k)!.handle}` : k);
   const ensure = (site: string, author: string) => {
     const k = accountKey(site, author);
     if (!meta.has(k)) {
       meta.set(k, { site, handle: author, urls: new Set() });
-      identity.set(k, new Set([`handle:${normalizeHandle(author)}@${site}`]));
+      identity.set(k, new Set());
+      add(identity.get(k)!, [`handle:${normalizeHandle(author)}@${site}`, `konto ${author} (${site})`]);
       exposed.set(k, new Set());
-      if (author.includes('@')) identity.get(k)!.add(`email:${author.toLowerCase()}`);
+      if (author.includes('@')) add(identity.get(k)!, [`email:${author.toLowerCase()}`, `e-mail ${author}`]);
     }
     return k;
   };
   const expose = (k: string, text: string, linked: Identifier[] = []) => {
-    for (const i of [...extractIdentifiers(text), ...linked]) for (const t of identifierTokens(i, siteOf)) exposed.get(k)!.add(t);
+    for (const i of [...extractIdentifiers(text), ...linked]) for (const t of identifierTokens(i, siteOf)) add(exposed.get(k)!, t);
   };
 
   for (const d of docs) {
     if (d.author) {
       const k = ensure(d.site, d.author);
       meta.get(k)!.urls.add(d.url);
-      identity.get(k)!.add(`url:${normUrl(d.url)}`);
-      if (d.kind === 'website') identity.get(k)!.add(`site:${d.site}`);
-      if (d.kind === 'channel') identity.get(k)!.add(`telegram:${normalizeHandle(d.author)}`);
+      add(identity.get(k)!, [`url:${normUrl(d.url)}`, d.url]);
+      if (d.kind === 'website') add(identity.get(k)!, [`site:${d.site}`, `strona ${d.site}`]);
+      if (d.kind === 'channel') add(identity.get(k)!, [`telegram:${normalizeHandle(d.author)}`, `Telegram @${d.author}`]);
       // Pełna treść należy do autora dokumentu tylko, gdy nie ma fragmentów innych autorów.
       const foreign = (d.segments ?? []).some((s) => s.author && normalizeHandle(s.author) !== normalizeHandle(d.author!));
       expose(k, foreign ? '' : d.content, d.linked);
@@ -122,7 +133,7 @@ export function buildIdentity(
       if (!s.author) continue;
       const k = ensure(d.site, s.author);
       meta.get(k)!.urls.add(d.url);
-      if (s.kind === 'channel') identity.get(k)!.add(`telegram:${normalizeHandle(s.author)}`);
+      if (s.kind === 'channel') add(identity.get(k)!, [`telegram:${normalizeHandle(s.author)}`, `Telegram @${s.author}`]);
       expose(k, s.text);
     }
   }
@@ -130,7 +141,8 @@ export function buildIdentity(
   const uf = new UnionFind();
   const SEED = '__SEED__';
   uf.find(SEED);
-  const seedTokens = new Set(seeds.flatMap((s) => identifierTokens(s, siteOf)));
+  const seedTokens = new Set<string>();
+  for (const s of seeds) for (const t of identifierTokens(s, siteOf)) add(seedTokens, t);
   const links: { a: string; b: string; why: string }[] = [];
   const keys = [...meta.keys()];
   for (const k of keys) uf.find(k);
@@ -144,7 +156,7 @@ export function buildIdentity(
       for (const other of byIdentity.get(t) ?? []) {
         if (other !== k && uf.find(other) !== uf.find(k)) {
           uf.union(k, other);
-          links.push({ a: k, b: other, why: `odnośnik/kontakt ${t}` });
+          links.push({ a: k, b: other, why: `odnośnik/kontakt: ${show(t)}` });
         }
       }
     }
@@ -156,14 +168,14 @@ export function buildIdentity(
     for (let i = 1; i < ks.length; i++)
       if (uf.find(ks[0]) !== uf.find(ks[i])) {
         uf.union(ks[0], ks[i]);
-        links.push({ a: ks[0], b: ks[i], why: `wspólny kontakt ${t}` });
+        links.push({ a: ks[0], b: ks[i], why: `wspólny kontakt: ${show(t)}` });
       }
   // Kotwice z danych wejściowych.
   for (const k of keys) {
     const hit = [...identity.get(k)!, ...exposed.get(k)!].find((t) => seedTokens.has(t));
     if (hit) {
       uf.union(SEED, k);
-      links.push({ a: 'dane wejściowe', b: k, why: `identyfikator wejściowy ${hit}` });
+      links.push({ a: 'dane wejściowe', b: k, why: `identyfikator wejściowy: ${show(hit)}` });
     }
   }
   for (const k of addressPublishers) {
@@ -200,7 +212,7 @@ export function buildIdentity(
       accounts: ks.map((k) => ({ site: meta.get(k)!.site, handle: meta.get(k)!.handle })),
       confirmed,
       reason: confirmedRoots.get(root) ?? (ks.length > 1 ? 'Grupa kont niepołączona z danymi wejściowymi ani z główną grupą' : 'Pojedyncze konto bez powiązań z innymi kontami badanego'),
-      links: links.filter((l) => ks.includes(l.b) || ks.includes(l.a)).map((l) => `${l.a.replace('|', ' / ')} ↔ ${l.b.replace('|', ' / ')}: ${l.why}`),
+      links: links.filter((l) => ks.includes(l.b) || ks.includes(l.a)).map((l) => `${acc(l.a)} ↔ ${acc(l.b)}: ${l.why}`),
     });
   }
   components.sort((a, b) => Number(b.confirmed) - Number(a.confirmed) || b.accounts.length - a.accounts.length);

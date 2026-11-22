@@ -43,11 +43,11 @@ export function MethodPage({ meta }: { meta: Meta }) {
               <tr><td>R3 · nick zgodny po normalizacji / częściowo</td><td className="minus">−{p.normalizedMatchPenalty} / −{p.partialMatchPenalty}</td></tr>
               <tr><td>R5 · adres tylko w archiwalnej wersji strony</td><td className="minus">−{p.archivedPenalty}</td></tr>
               <tr><td>R8 · bardzo duża liczba transakcji (profil usługi)</td><td className="minus">−{p.highActivityPenalty}</td></tr>
-              <tr><td>R9 · konto połączone z badanym tylko zgodnym nickiem (brak odnośnika / wspólnego kontaktu z innymi kontami badanego)</td><td className="minus">−{p.unconfirmedNickPenalty}</td></tr>
+              <tr><td>R9 · konto połączone z badanym tylko zgodnym nickiem (brak odnośnika / wspólnego kontaktu); zniesiona, gdy działa R7</td><td className="minus">−{p.unconfirmedNickPenalty}</td></tr>
               <tr><td>R10 · tożsamość wywnioskowana tylko z publikacji adresu wejściowego</td><td className="minus">−{p.weakIdentityPenalty}</td></tr>
             </tbody>
           </table>
-          <div className="small muted">Wynik = najlepszy dowód + premie − kary, ograniczony do 0–{p.maxScore}% (to prawdopodobieństwo, nie pewność). Wielokrotne wystąpienie w jednym serwisie nie podnosi wyniku.</div>
+          <div className="small muted">Wynik = najlepszy dowód + premie − kary, ograniczony do 0–{p.maxScore}% (ocena heurystyczna, nie pewność); obcięcie do limitu jest jawnym wierszem MAX. Wielokrotne wystąpienie w jednym serwisie nie podnosi wyniku.</div>
         </div>
       </div>
       <div className="panel">
@@ -55,7 +55,7 @@ export function MethodPage({ meta }: { meta: Meta }) {
         <ul>
           <li><b>CEX_OUTFLOW</b> – wpłata na adres giełdy scentralizowanej (zwykle poprzedza sprzedaż za fiat; dane KYC u giełdy).</li>
           <li><b>OFFRAMP / P2P</b> – interakcja z kantorem, bramką krypto-fiat, kartą krypto lub platformą P2P.</li>
-          <li><b>STABLECOIN_SWAP</b> – wymiana kryptowaluty na stablecoin przez DEX (w tej samej transakcji) powyżej progu.</li>
+          <li>Pomocniczo: <b>STABLECOIN_SWAP</b> – wymiana na stablecoin przez DEX; to wymiana krypto–krypto, więc nie jest liczona jako wyjście do fiat (te same środki zwykle trafiają potem na giełdę).</li>
           <li>Dodatkowo: <b>MIXER</b> (zacieranie pochodzenia), <b>LINKED_ADDRESS</b> (wspólna kontrola), <b>CEX_INFLOW</b>, <b>NO_ACTIVITY</b>, <b>HIGH_ACTIVITY</b>.</li>
         </ul>
         <h3>5. Źródła i bezpieczeństwo</h3>

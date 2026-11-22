@@ -2,6 +2,7 @@
 import { addressKey } from '../extract/addresses.ts';
 import { isStable } from './providers.ts';
 import type { ChainSummary, Indicator } from './types.ts';
+import { plural } from '../plural.ts';
 
 const fmt = (n: number, asset: string) => `${n.toLocaleString('pl-PL', { maximumFractionDigits: 6 })} ${asset}`;
 
@@ -25,22 +26,27 @@ export function computeIndicators(s: ChainSummary, opts: IndicatorOptions): Indi
     return [...m.entries()].map(([a, v]) => fmt(v, a)).join(', ');
   };
   const names = (txs: typeof s.txs) => [...new Set(txs.map((t) => t.counterpartyLabel?.name))].join(', ');
+  const txN = (n: number) => plural(n, 'transakcja', 'transakcje', 'transakcji');
+  // Przyimek zgodny z kierunkiem: wypływ → „do”, wpływ → „z”, oba → „z/do”.
+  const dir = (txs: typeof s.txs) => (txs.every((t) => t.direction === 'out') ? 'do' : txs.every((t) => t.direction === 'in') ? 'z' : 'z/do');
+  const withWho = (txs: typeof s.txs) => `${txN(txs.length)} ${dir(txs)}: ${names(txs)}; łącznie ${sum(txs)}`;
 
   const cexOut = byCat('CEX', 'out');
   if (cexOut.length)
-    out.push({ code: 'CEX_OUTFLOW', severity: 'high', title: 'Wpłaty na giełdę scentralizowaną (CEX)', detail: `${cexOut.length} transakcji do: ${names(cexOut)}; łącznie ${sum(cexOut)}. Wpłata na giełdę zwykle poprzedza sprzedaż za walutę fiat – wymaga weryfikacji u giełdy (KYC).`, cashOut: true, txs: cexOut.map((t) => t.hash) });
+    out.push({ code: 'CEX_OUTFLOW', severity: 'high', title: 'Wpłaty na giełdę scentralizowaną (CEX)', detail: `${withWho(cexOut)}. Wpłata na giełdę zwykle poprzedza sprzedaż za walutę fiat – wymaga weryfikacji u giełdy (KYC).`, cashOut: true, txs: cexOut.map((t) => t.hash) });
   const off = [...byCat('OFFRAMP'), ...byCat('P2P')];
   if (off.length)
-    out.push({ code: 'OFFRAMP', severity: 'high', title: 'Interakcja z kantorem / bramką krypto-fiat / P2P', detail: `${off.length} transakcji z: ${names(off)}; łącznie ${sum(off)}.`, cashOut: true, txs: off.map((t) => t.hash) });
+    out.push({ code: 'OFFRAMP', severity: 'high', title: 'Interakcja z kantorem / bramką krypto-fiat / P2P', detail: `${withWho(off)}.`, cashOut: true, txs: off.map((t) => t.hash) });
 
   // Wymiana na stablecoiny: przychód stablecoina w tej samej transakcji co wypływ do DEX.
   const dexTx = new Set(byCat('DEX').map((t) => t.hash));
   const swaps = s.txs.filter((t) => dexTx.has(t.hash) && t.direction === 'in' && isStable(t.asset));
   const swapValue = swaps.reduce((a, t) => a + t.amount, 0);
   if (swaps.length)
-    out.push({ code: 'STABLECOIN_SWAP', severity: swapValue >= opts.stableThreshold ? 'high' : 'medium', title: 'Wymiana kryptowaluty na stablecoin (DEX)', detail: `Otrzymano ${sum(swaps)} w wyniku swapu na DEX (${names(byCat('DEX'))}).`, cashOut: swapValue >= opts.stableThreshold, txs: swaps.map((t) => t.hash) });
+    // Wymiana krypto→krypto, a nie wyjście do fiat (to samo saldo liczyłoby się podwójnie z późniejszą wpłatą na giełdę).
+    out.push({ code: 'STABLECOIN_SWAP', severity: swapValue >= opts.stableThreshold ? 'medium' : 'info', title: 'Wymiana kryptowaluty na stablecoin (DEX)', detail: `Otrzymano ${sum(swaps)} w wyniku swapu na DEX (${names(byCat('DEX'))}). Wymiana krypto–krypto, nie wyjście do fiat.`, cashOut: false, txs: swaps.map((t) => t.hash) });
   else if (dexTx.size)
-    out.push({ code: 'DEX_SWAP', severity: 'info', title: 'Interakcje z DEX', detail: `${dexTx.size} transakcji z: ${names(byCat('DEX'))}.`, cashOut: false, txs: [...dexTx] });
+    out.push({ code: 'DEX_SWAP', severity: 'info', title: 'Interakcje z DEX', detail: `${withWho(byCat('DEX'))}.`, cashOut: false, txs: [...dexTx] });
 
   const stableFlows = s.tokenFlows.filter((f) => isStable(f.asset));
   const stableTotal = stableFlows.reduce((a, f) => a + f.in + f.out, 0);
@@ -49,11 +55,11 @@ export function computeIndicators(s: ChainSummary, opts: IndicatorOptions): Indi
 
   const mix = byCat('MIXER');
   if (mix.length)
-    out.push({ code: 'MIXER', severity: 'high', title: 'Interakcja z mikserem', detail: `${mix.length} transakcji z: ${names(mix)}; łącznie ${sum(mix)}. Możliwe zacieranie pochodzenia środków.`, cashOut: false, txs: mix.map((t) => t.hash) });
+    out.push({ code: 'MIXER', severity: 'high', title: 'Interakcja z mikserem', detail: `${withWho(mix)}. Możliwe zacieranie pochodzenia środków.`, cashOut: false, txs: mix.map((t) => t.hash) });
 
   const cexIn = byCat('CEX', 'in');
   if (cexIn.length)
-    out.push({ code: 'CEX_INFLOW', severity: 'info', title: 'Wypłaty z giełdy na ten adres', detail: `${cexIn.length} transakcji z: ${names(cexIn)}; łącznie ${sum(cexIn)} (możliwy zakup kryptowaluty na giełdzie).`, cashOut: false, txs: cexIn.map((t) => t.hash) });
+    out.push({ code: 'CEX_INFLOW', severity: 'info', title: 'Wypłaty z giełdy na ten adres', detail: `${withWho(cexIn)} (możliwy zakup kryptowaluty na giełdzie).`, cashOut: false, txs: cexIn.map((t) => t.hash) });
 
   const linked = s.txs.filter((t) => t.counterparty && opts.linkedKeys.has(addressKey(s.chain, t.counterparty)));
   if (linked.length)
@@ -61,13 +67,13 @@ export function computeIndicators(s: ChainSummary, opts: IndicatorOptions): Indi
 
   if (s.txCount === 0) out.push({ code: 'NO_ACTIVITY', severity: 'info', title: 'Brak aktywności on-chain', detail: 'Adres nie ma żadnych transakcji – może być nieużywany, nowy lub opublikowany jako przynęta.', cashOut: false, txs: [] });
   if ((s.txCount ?? 0) >= opts.highActivityTx)
-    out.push({ code: 'HIGH_ACTIVITY', severity: 'medium', title: 'Bardzo duża liczba transakcji', detail: `${s.txCount} transakcji – profil typowy dla usługi (giełda, płatności), a nie prywatnego portfela. Wymaga weryfikacji etykiety.`, cashOut: false, txs: [] });
+    out.push({ code: 'HIGH_ACTIVITY', severity: 'medium', title: 'Bardzo duża liczba transakcji', detail: `${txN(s.txCount ?? 0)} – profil typowy dla usługi (giełda, płatności), a nie prywatnego portfela. Wymaga weryfikacji etykiety.`, cashOut: false, txs: [] });
   if (s.sampled)
     out.push({
       code: 'DATA_LIMIT',
       severity: 'info',
       title: 'Analiza na próbce transakcji',
-      detail: `Przeanalizowano ${s.txs.length}${s.txCount ? ` z ${s.txCount}` : ''} transakcji (najnowsze). ${s.volumeScope === 'full' ? 'Sumy wolumenu pochodzą z pełnych statystyk eksploratora' : 'Sumy wolumenu obejmują WYŁĄCZNIE próbkę – rzeczywisty wolumen może być wyższy'}; wskaźniki liczone z próbki.`,
+      detail: `Przeanalizowano ${s.txCount ? `${s.txs.length} z ${txN(s.txCount)}` : txN(s.txs.length)} (najnowsze). ${s.volumeScope === 'full' ? 'Sumy wolumenu pochodzą z pełnych statystyk eksploratora' : 'Sumy wolumenu obejmują WYŁĄCZNIE próbkę – rzeczywisty wolumen może być wyższy'}; wskaźniki liczone z próbki.`,
       cashOut: false,
       txs: [],
     });

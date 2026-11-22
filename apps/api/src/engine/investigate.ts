@@ -582,19 +582,21 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
   for (const r of results) {
     if (r.score.excluded) {
       if (r.evidence.some((e) => e.attribution === 'subject'))
-        conclusions.push({ level: 'low', text: `Badany posługiwał się adresem ${r.address} należącym do podmiotu "${r.label?.name}" – odnotowano interakcję, adres nie jest prywatnym portfelem.`, basis: r.evidence.filter((e) => e.attribution === 'subject').map((e) => e.url), verify: r.label?.category === 'CEX' ? `Zapytanie do ${r.label?.name} o właściciela konta (jeśli to adres depozytowy).` : 'Brak dalszych działań wobec samego adresu.' });
+        conclusions.push({ level: 'low', text: `Badany posługiwał się adresem ${r.address} należącym do podmiotu "${r.label?.name}" – odnotowano interakcję, adres nie jest prywatnym portfelem.`, basis: r.evidence.filter((e) => e.attribution === 'subject').map((e) => e.url), verify: r.label?.category === 'CEX' ? `Portfel giełdy jest wspólny dla wielu klientów – pytać ${r.label?.name} o klienta, który zlecił konkretne transakcje badanego (hashe w chronologii przepływu środków), a nie o sam adres.` : 'Brak dalszych działań wobec samego adresu.' });
       continue;
     }
     if (r.score.score < 40) continue;
     const top = r.evidence.find((e) => e.docId === r.score.bestEvidenceDocId);
     conclusions.push({
       level: r.score.score >= 80 ? 'high' : r.score.score >= 60 ? 'medium' : 'low',
-      text: `Adres ${r.chain} ${r.address} jest z prawdopodobieństwem ${r.score.score}% powiązany z badanym (${r.score.bandLabel}).`,
+      text: `Adres ${r.chain} ${r.address} powiązany z identyfikatorami badanego – Wskaźnik Pewności ${r.score.score}% (${r.score.bandLabel}).`,
       basis: [...new Set(r.evidence.filter((e) => e.attribution === 'subject').map((e) => e.url))],
-      verify: top ? `Potwierdzić, że konto "${top.author ?? top.site}" należy do badanego (np. dane rejestrowe serwisu, korelacja z innymi danymi KAS).` : 'Potwierdzić tożsamość autora publikacji.',
+      verify: top ? `Potwierdzić, że konto "${top.author ?? top.site}" (${top.site}) należy do badanej osoby – powiązanie z identyfikatorem wejściowym nie przesądza o tożsamości (np. dane rejestrowe serwisu, korelacja z innymi danymi KAS).` : 'Potwierdzić tożsamość autora publikacji.',
     });
     for (const ind of r.indicators.filter((i) => i.cashOut))
       conclusions.push({ level: 'high', text: `Możliwe wyjście do walut tradycyjnych z adresu ${r.address}: ${ind.title}. ${ind.detail}`, basis: ind.txs, verify: 'Zweryfikować u wskazanego podmiotu (giełda/kantor) dane KYC i wypłaty fiat; porównać z zeznaniem PIT-38.' });
+    for (const ind of r.indicators.filter((i) => i.code === 'MIXER'))
+      conclusions.push({ level: 'high', text: `Interakcja z mikserem z adresu ${r.address}: ${ind.detail}`, basis: ind.txs, verify: 'Ustalić pochodzenie i dalszy los środków przepuszczonych przez mikser (adresy po drugiej stronie, kwoty, czas) – możliwe ukrywanie źródła lub przychodu.' });
   }
   for (const s of swaps) conclusions.push({ level: 'medium', text: `Podmiana adresu ${s.chain} na stronie ${s.url}: ${s.before.join(', ')} → ${s.after.join(', ')}.`, basis: [s.url], verify: 'Sprawdzić, czy oba adresy należą do badanego (wspólna kontrola) – nowy adres powinien zostać objęty analizą.' });
 

@@ -418,7 +418,6 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
                 ' Nie wykryto sygnałów wyjścia do walut tradycyjnych.'
               )}
             </p>
-            <button className="sm" style={{ marginTop: 12 }} onClick={() => onPick(best.key)}>Zobacz dowody i wyliczenie →</button>
           </div>
         </div>
       ) : (
@@ -437,12 +436,6 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
         <div className={`kpi ${s.cashOutSignals > 0 ? 'alert' : ''}`}><b>{s.cashOutSignals}</b><span>sygnałów wyjścia do fiat</span></div>
         <div className="kpi"><b>{s.excluded}</b><span>wykluczonych (giełdy, kontrakty…)</span></div>
         <div className="kpi"><b>{s.addresses}</b><span>poprawnych adresów znalezionych</span></div>
-      </div>
-      <div className="meta-line">
-        <span><b>{s.identifiers}</b> identyfikatorów (wejście + pivot)</span>
-        <span><b>{s.documents}</b> przeanalizowanych dokumentów</span>
-        <span><b>{s.requests}</b> zapytań sieciowych</span>
-        <span>czas analizy <b>{(s.durationMs / 1000).toFixed(1)} s</b></span>
       </div>
 
       <div className="doc-h">
@@ -478,7 +471,7 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
       </div>
 
       <div className="doc-h">
-        <span className="n">4.</span> Wnioski wymagające weryfikacji <span className="aside">{r.conclusions.length} pozycji · od najważniejszych</span>
+        <span className="n">4.</span> Wnioski wymagające weryfikacji
       </div>
       <div className="panel flush">
         {r.conclusions.length === 0 && <div className="empty">Brak wniosków.</div>}

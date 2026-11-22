@@ -4,6 +4,7 @@
 import { CONTEXT_INFO, type ContextResult } from './context.ts';
 import { CATEGORY_LABELS, EXCLUDED_CATEGORIES, type AddressLabel, type Indicator } from '../chain/types.ts';
 import type { DocKind } from '../sources/types.ts';
+import { plural } from '../plural.ts';
 
 export interface Evidence {
   docId: string;
@@ -97,7 +98,7 @@ function evidenceScore(e: Evidence): { score: number; rules: ScoreRule[] } {
   const rules: ScoreRule[] = [{ code: 'R1', label: `Kontekst: ${info.label} (${e.context.rule}) – przedział ${info.band}`, value: info.base, kind: 'base', evidenceDocId: e.docId }];
   if (e.depth > 0) {
     const pen = Math.min(P.pivotPenaltyMax, e.depth * P.pivotPenaltyPerHop);
-    rules.push({ code: 'R2', label: `Identyfikator autora uzyskany pośrednio (pivot, ${e.depth} krok/i od danych wejściowych)`, value: -pen, kind: 'penalty', evidenceDocId: e.docId });
+    rules.push({ code: 'R2', label: `Identyfikator autora uzyskany pośrednio (pivot, ${plural(e.depth, 'krok', 'kroki', 'kroków')} od danych wejściowych)`, value: -pen, kind: 'penalty', evidenceDocId: e.docId });
   }
   if (e.linkStrength === 'normalized') rules.push({ code: 'R3a', label: 'Nick autora zgodny po normalizacji (wielkość liter/separatory)', value: -P.normalizedMatchPenalty, kind: 'penalty', evidenceDocId: e.docId });
   if (e.linkStrength === 'partial') rules.push({ code: 'R3b', label: 'Nick autora zgodny tylko częściowo – możliwa inna osoba', value: -P.partialMatchPenalty, kind: 'penalty', evidenceDocId: e.docId });
@@ -106,7 +107,7 @@ function evidenceScore(e: Evidence): { score: number; rules: ScoreRule[] } {
   if (e.viaNickOnly && !e.identityConfirmed)
     rules.push({ code: 'R9', label: `Konto powiązane z badanym tylko zgodnością nicku – brak odnośnika lub wspólnego kontaktu z innymi kontami badanego (${e.identityRule})`, value: -P.unconfirmedNickPenalty, kind: 'penalty', evidenceDocId: e.docId });
   if (e.weakIdentity) rules.push({ code: 'R10', label: 'Tożsamość autora wywnioskowana wyłącznie z publikacji adresu wejściowego', value: -P.weakIdentityPenalty, kind: 'penalty', evidenceDocId: e.docId });
-  const score = Math.max(0, Math.min(P.maxScore, rules.reduce((a, r) => a + r.value, 0)));
+  const score = Math.max(0, rules.reduce((a, r) => a + r.value, 0)); // limit 99 nakłada scoreAddress (jawny wiersz MAX)
   return { score, rules };
 }
 
@@ -140,7 +141,7 @@ export function scoreAddress(input: ScoreInput): ScoreResult {
       exclusionReason: exclusion,
       rules: [
         { code: exclusion.slice(0, 2), label: exclusion, value: 0, kind: 'override' },
-        ...(subjectEv.length ? [{ code: 'I1', label: `Odnotowano fakt interakcji: badany opublikował/użył tego adresu w ${subjectEv.length} miejscu/ach (np. adres depozytowy giełdy) – nie jest to prywatny portfel`, value: 0, kind: 'info' as const }] : []),
+        ...(subjectEv.length ? [{ code: 'I1', label: `Odnotowano fakt interakcji: badany opublikował/użył tego adresu (${plural(subjectEv.length, 'wystąpienie', 'wystąpienia', 'wystąpień')}; np. adres depozytowy giełdy) – nie jest to prywatny portfel`, value: 0, kind: 'info' as const }] : []),
       ],
       bestEvidenceDocId: subjectEv[0]?.docId ?? null,
       independentSites: sites,
@@ -174,12 +175,25 @@ export function scoreAddress(input: ScoreInput): ScoreResult {
   if (input.linkedToStrongAddress) {
     rules.push({ code: 'R7', label: 'Bezpośrednie transakcje z innym adresem przypisanym badanemu (wynik ≥ 60%)', value: P.onChainLinkBonus, kind: 'bonus' });
     score += P.onChainLinkBonus;
+    // Powiązanie on-chain to drugi, niezależny ślad – znosi karę R9 za „tylko zgodny nick”.
+    const r9 = rules.findIndex((r) => r.code === 'R9' && r.value < 0);
+    if (r9 >= 0) {
+      score -= rules[r9].value;
+      rules[r9] = { ...rules[r9], label: `${rules[r9].label} – kara zniesiona: powiązanie on-chain z adresem badanego (R7)`, value: 0, kind: 'info' };
+    }
   }
   if (input.indicators.some((i) => i.code === 'HIGH_ACTIVITY')) {
     rules.push({ code: 'R8', label: 'Heurystyka: bardzo duża liczba transakcji – możliwy adres usługi, nie osoby', value: -P.highActivityPenalty, kind: 'penalty' });
     score -= P.highActivityPenalty;
   }
-  score = Math.max(0, Math.min(P.maxScore, score));
+  // Jawny wiersz limitu, żeby składowe sumowały się do wyniku (np. 90 + 5 + 15 = 110 → 99).
+  if (score > P.maxScore) {
+    rules.push({ code: 'MAX', label: `Limit wskaźnika: maksymalnie ${P.maxScore}%`, value: P.maxScore - score, kind: 'override' });
+    score = P.maxScore;
+  }
+  score = Math.max(0, score);
   const b = band(score);
-  return { score, band: b, bandLabel: BANDS[b], excluded: false, exclusionReason: null, rules, bestEvidenceDocId: best.e.docId, independentSites: sites };
+  // Przedział średni wymaga drugiego śladu – powiązanie on-chain (R7) nim jest, więc etykieta tego nie żąda.
+  const bandLabel = b === 'MEDIUM' && input.linkedToStrongAddress ? '40–59% · ŚREDNI (drugi ślad: powiązanie on-chain)' : BANDS[b];
+  return { score, band: b, bandLabel, excluded: false, exclusionReason: null, rules, bestEvidenceDocId: best.e.docId, independentSites: sites };
 }
