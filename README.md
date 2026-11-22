@@ -2,6 +2,8 @@
 
 **HackNation 2026 · wyzwanie Ministerstwa Finansów / KAS („OSINTowy Łapacz Cyfrowych Śladów”)**
 
+🎬 **Film demonstracyjny (2:34):** https://youtu.be/cw-VEzpwTSo · 📦 **Kod:** https://github.com/pilarhz/Hacknation2026-OGAR
+
 Osoby zarabiające na kryptowalutach publikują adresy portfeli na forach, w profilach, ogłoszeniach P2P i komunikatorach, ale nie wykazują przychodów w PIT-38. Analityk KAS musi dziś ręcznie przeglądać te miejsca, łączyć konta i oceniać, czy adres na pewno należy do danej osoby.
 
 **OGAR robi to automatycznie.** Po podaniu nicku, e-maila, Telegramu, imienia i nazwiska, strony WWW albo adresu krypto:
@@ -17,7 +19,7 @@ Osoby zarabiające na kryptowalutach publikują adresy portfeli na forach, w pro
 
 > Tylko publiczne źródła: bez logowania na cudze konta i bez obchodzenia zabezpieczeń. Połączenia wyłącznie z hostami z białej listy, a każde zapytanie trafia do rejestru.
 
-**Spis treści:** [Uruchomienie](#uruchomienie) · [Scenariusze testowe](#scenariusze-testowe) · [Przykładowy wynik](#przykładowy-wynik) · [Zrzuty ekranu](#zrzuty-ekranu) · [Jak to działa](#jak-to-działa) · [Wskaźnik Pewności](#wskaźnik-pewności) · [Wykluczenia i wyjście do fiat](#wykluczenia-i-wyjście-do-fiat) · [Raport](#raport) · [Parametry wyszukiwania](#parametry-wyszukiwania) · [AI](#ai-opcjonalnie) · [Architektura i bezpieczeństwo](#architektura-i-bezpieczeństwo) · [Zgodność z wymaganiami](#zgodność-z-wymaganiami) · [Licencje](#licencje) · [Ograniczenia](#ograniczenia)
+**Spis treści:** [Uruchomienie](#uruchomienie) · [Scenariusze testowe](#scenariusze-testowe) · [Zrzuty ekranu](#zrzuty-ekranu) · [Jak to działa](#jak-to-działa) · [Wskaźnik Pewności](#wskaźnik-pewności) · [Wykluczenia i wyjście do fiat](#wykluczenia-i-wyjście-do-fiat) · [Raport](#raport) · [Parametry wyszukiwania](#parametry-wyszukiwania) · [AI](#ai-opcjonalnie) · [Architektura i bezpieczeństwo](#architektura-i-bezpieczeństwo) · [Zgodność z wymaganiami](#zgodność-z-wymaganiami) · [Licencje](#licencje) · [Ograniczenia](#ograniczenia)
 
 ---
 
@@ -26,8 +28,8 @@ Osoby zarabiające na kryptowalutach publikują adresy portfeli na forach, w pro
 Wymagany jest tylko **Node.js 22.18+** (zalecany 24) i Git. Baza danych, Docker ani klucze API nie są potrzebne.
 
 ```bash
-git clone https://github.com/pilarhz/Hacknation2026-OLCS.git
-cd Hacknation2026-OLCS
+git clone https://github.com/pilarhz/Hacknation2026-OGAR.git
+cd Hacknation2026-OGAR
 npm install
 npm run dev
 ```
@@ -40,7 +42,7 @@ Otwórz **http://127.0.0.1:5173**. W tle działają też API (:8080), wbudowany 
 3. Kliknij adres, żeby zobaczyć cytat ze źródła i wyliczenie wyniku reguła po regule. Kolejne zakładki to Mapa powiązań, Przepływ środków, Źródła i tożsamość oraz Rejestr zapytań.
 4. **Raport OSINT ↗** otwiera raport do druku lub PDF.
 
-**Testy:** `npm test` uruchamia 35 testów: sumy kontrolne, reguły punktacji, scenariusze 1–4 i bazę danych.
+**Testy:** `npm test` uruchamia 41 testów: sumy kontrolne adresów, reguły punktacji, scenariusze 1–4, parsery Telegrama i Bitcointalk oraz bazę danych.
 
 Docker, wersję produkcyjną i własny serwer PostgreSQL opisuje [docs/TECHNICZNE.md](docs/TECHNICZNE.md).
 
@@ -269,7 +271,8 @@ Limity i zabezpieczenia:
 | Źródło, URL, data pobrania, metadane do odtworzenia | zakładka **Źródła**, pełne SHA-256, rejestr zapytań, dziennik audytu (także unieważnień i poprawek parametrów) |
 | Raport: fakty / obliczenia / wnioski, chronologia przepływu środków | **Raport OSINT** + **mapa powiązań** (graf: wejście → pivot → źródła → adresy → usługi) |
 | Dalsza rozbudowa | interfejs źródeł, wspólny kod EVM, [TECHNICZNE.md](docs/TECHNICZNE.md#rozbudowa) |
-| Scenariusze na danych syntetycznych | piaskownica + `npm test` |
+| Scenariusze na danych syntetycznych | piaskownica (5 scenariuszy) + 41 testów automatycznych |
+| README: opis, założenia, instalacja, przykłady | ten plik: [Uruchomienie](#uruchomienie), [Zrzuty ekranu](#zrzuty-ekranu), [film](https://youtu.be/cw-VEzpwTSo) |
 | Node.js, React, PostgreSQL, open source, monorepo | tak |
 | Łatwa wymiana modelu AI, uruchamianie lokalne | API zgodne z OpenAI, Ollama |
 | Brak wysyłki danych do niezatwierdzonych usług | biała lista hostów |
