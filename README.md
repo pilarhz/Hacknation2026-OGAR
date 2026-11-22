@@ -1,4 +1,4 @@
-# OGAR – OSINTowy łapacz adresów i rejestrów
+# OGAR - Narzędzie Analityczne
 
 **HackNation 2026 · wyzwanie Ministerstwa Finansów / KAS („OSINTowy Łapacz Cyfrowych Śladów”)**
 
