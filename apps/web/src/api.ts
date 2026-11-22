@@ -20,7 +20,7 @@ export interface Meta {
   scoringParams: Record<string, number>;
   categories: Record<string, string>;
   defaults: InvestigationOptions;
-  config: { chainLive: boolean; ai: string; aiModel: string | null; sandboxUrl: string; allowedHosts: string[]; searxng: boolean };
+  config: { database?: string; chainLive: boolean; ai: string; aiModel: string | null; sandboxUrl: string; allowedHosts: string[]; searxng: boolean };
 }
 
 export type InvestigationListItem = Investigation & { runCount: number; lastStatus: string | null; lastStats: Record<string, number> | null; topScore: number | null };

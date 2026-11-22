@@ -220,6 +220,8 @@ Usługi zewnętrzne są publiczne i używane bez kluczy, zgodnie z ich warunkami
 | Gravatar API | profil po hashu e-maila | Gravatar/Automattic ToS |
 | Reddit JSON | wypowiedzi | Reddit Data API Terms (dziś wymaga OAuth) |
 | HN Algolia API | profile, komentarze, wyszukiwanie | publiczne API Algolia dla HN |
+| Bitcointalk (forum SMF) | profil (pole „Bitcoin address”, podpis), ostatnie posty | strony dostępne dla gościa; robots.txt bez ograniczeń; wyszukiwarka wymaga logowania – nieużywana; >1 s między zapytaniami |
+| Telegram (podgląd t.me/s/…) | publiczne kanały: opis i wiadomości | strona publiczna dostępna bez logowania; brak robots.txt; tylko kanały publiczne, ~3 zapytania na kanał, odstęp między zapytaniami |
 | Internet Archive (Wayback CDX) | wersje archiwalne | Internet Archive Terms of Use |
 | Blockscout | dane Ethereum, etykiety, flaga kontraktu | publiczna instancja; GPL-3.0, można hostować samemu |
 | Blockstream Esplora | dane Bitcoin | publiczne API; MIT, można hostować samemu |

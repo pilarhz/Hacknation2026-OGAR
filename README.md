@@ -219,6 +219,8 @@ Daty są podane w UTC. Eksport JSON i CSV jest w menu **⋯** analizy.
 | Keybase | nick, URL | dowody tożsamości i **podpisane** adresy krypto |
 | Gravatar | e-mail | profil po hashu e-maila: portfele, zweryfikowane konta |
 | Hacker News | nick, adres | profil, komentarze, wyszukiwanie adresu |
+| Telegram | Telegram, nick | publiczny podgląd kanału t.me/s/…: opis i ostatnie ~60 wiadomości z możliwym adresem, każda z permalinkiem i datą |
+| Bitcointalk | URL profilu (podany lub z pivotu) | profil z polem „Bitcoin address” i podpisem, ostatnie posty z adresami (bez cytatów innych osób); po nicku nie szuka, bo wyszukiwarka forum wymaga logowania |
 | WWW, Wayback Machine | URL | strona i do 4 jej archiwalnych wersji |
 | SearXNG *(opcjonalnie)* | wszystkie | własna instancja metawyszukiwarki |
 | Reddit *(wyłączony)* | nick, adres | dziś wymaga OAuth (HTTP 403) |
@@ -311,13 +313,13 @@ Kod OGAR: [MIT](LICENSE). Wszystkie zależności są open source:
 | PostgreSQL | PostgreSQL License |
 | czcionki @fontsource (Saira Stencil One, IBM Plex Sans, IBM Plex Mono) | OFL-1.1 |
 
-Wersje komponentów i warunki korzystania z usług zewnętrznych (GitHub, Keybase, Gravatar, HN Algolia, Internet Archive, Blockscout, Esplora, TronGrid) są w [docs/TECHNICZNE.md](docs/TECHNICZNE.md#licencje-i-usługi-zewnętrzne).
+Wersje komponentów i warunki korzystania z usług zewnętrznych (GitHub, Keybase, Gravatar, HN Algolia, Telegram, Bitcointalk, Internet Archive, Blockscout, Esplora, TronGrid) są w [docs/TECHNICZNE.md](docs/TECHNICZNE.md#licencje-i-usługi-zewnętrzne).
 
 ---
 
 ## Ograniczenia
 
-- **Na żywo działają głównie serwisy programistyczne** (GitHub, Keybase, Gravatar, Hacker News). Fora, ogłoszenia P2P i komunikatory są pokryte tylko w piaskownicy. Następne w kolejce są **Bitcointalk** i **publiczne kanały Telegram**.
+- **Na żywo działają serwisy programistyczne, publiczne kanały Telegram i forum Bitcointalk** (GitHub, Keybase, Gravatar, Hacker News, Telegram, Bitcointalk). Prywatne grupy Telegrama i wyszukiwarka Bitcointalk wymagają logowania, więc z nich nie korzystamy: Bitcointalk czytamy po adresie profilu. Ogłoszenia P2P są pokryte tylko w piaskownicy.
 - **Facebook, Instagram, X i OLX** wymagają logowania, więc ich nie przeszukujemy. Publiczną stronę można podać jako URL.
 - **Wyjście do fiat opiera się na etykietach.** Indywidualne adresy depozytowe giełd są nieoznaczone, a wyceny w PLN (kurs NBP) jeszcze nie ma.
 - **Dane on-chain to próbka** ostatnich 25–100 transakcji, a adres EVM jest sprawdzany tylko w sieci Ethereum.

@@ -6,8 +6,10 @@ import { keybaseSource } from './keybase.ts';
 import { gravatarSource } from './gravatar.ts';
 import { redditSource, hackerNewsSource } from './social.ts';
 import { webSource, waybackSource, searxngSource } from './web.ts';
+import { telegramSource } from './telegram.ts';
+import { bitcointalkSource } from './bitcointalk.ts';
 
-export const SOURCES: Source[] = [sandboxSource, githubSource, keybaseSource, gravatarSource, redditSource, hackerNewsSource, webSource, waybackSource, searxngSource];
+export const SOURCES: Source[] = [sandboxSource, githubSource, keybaseSource, gravatarSource, redditSource, hackerNewsSource, telegramSource, bitcointalkSource, webSource, waybackSource, searxngSource];
 
 export function getSources(ids: string[]): Source[] {
   return SOURCES.filter((s) => ids.includes(s.id));

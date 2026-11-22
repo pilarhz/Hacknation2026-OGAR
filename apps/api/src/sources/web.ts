@@ -21,6 +21,8 @@ export const webSource: Source = {
       return [];
     }
     if (!/^https?:$/.test(url.protocol) || SKIP_HOSTS.test(url.hostname)) return [];
+    // profil Bitcointalk czyta dedykowane źródło (pole „Bitcoin address", posty) – bez dublowania dokumentu
+    if (/(^|\.)bitcointalk\.org$/i.test(url.hostname) && /action=profile/i.test(decodeURIComponent(url.search))) return [];
     const local = url.hostname === new URL(config.sandboxUrl).hostname;
     // Strona podana wprost przez analityka = zgoda na jej host (w tym przebiegu).
     if (!local && ctx.origin === 'input' && config.allowUserUrls) allowHostForRun(url.hostname);

@@ -23,7 +23,7 @@ const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
 const TELEGRAM = /(?:\bt\.me\/(?:s\/)?|\btelegram\.me\/)(?!joinchat\b|addstickers\b|share\b|proxy\b)([A-Za-z][A-Za-z0-9_]{4,31})\b|\b(?:telegram|tg)\s*[:\-–]?\s*@([A-Za-z][A-Za-z0-9_]{4,31})\b/gi;
 // Telefon: tylko z prefiksem (+48, tel, kom, whatsapp, sms) – inaczej każda 9-cyfrowa liczba byłaby telefonem.
 const PHONE = /(?<![\p{L}\p{N}])(?:\+48[\s-]?|(?:tel(?:efon)?|phone|kom(?:órka)?|whatsapp|sms)\.?\s*[:\-–]?\s*(?:\+48[\s-]?)?)(\d{3}[\s-]?\d{3}[\s-]?\d{3})(?![\p{L}\p{N}])/giu;
-const SOCIAL = /https?:\/\/(?:www\.)?(?:github\.com|x\.com|twitter\.com|reddit\.com\/(?:u|user)|instagram\.com|facebook\.com|tiktok\.com\/@|keybase\.io|news\.ycombinator\.com\/user\?id=)[^\s"'<>)]+/gi;
+const SOCIAL = /https?:\/\/(?:www\.)?(?:github\.com|x\.com|twitter\.com|reddit\.com\/(?:u|user)|instagram\.com|facebook\.com|tiktok\.com\/@|keybase\.io|news\.ycombinator\.com\/user\?id=|bitcointalk\.org\/index\.php\?action=profile;u=)[^\s"'<>)]+/gi;
 
 export function extractIdentifiers(text: string): Identifier[] {
   const out = new Map<string, Identifier>();

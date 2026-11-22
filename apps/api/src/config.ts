@@ -32,7 +32,7 @@ export const config = {
   /** Adres syntetycznego "internetu" do scenariuszy testowych. */
   sandboxUrl: env('SANDBOX_URL', 'http://127.0.0.1:4100'),
   /** Źródła włączone domyślnie (można nadpisać per analiza). */
-  defaultSources: list('SOURCES', 'github,keybase,gravatar,hackernews,web,wayback'),
+  defaultSources: list('SOURCES', 'github,keybase,gravatar,hackernews,telegram,bitcointalk,web,wayback'),
   /** Czy odpytywać publiczne API blockchain (Blockscout/Esplora). false = tylko dane syntetyczne/cache. */
   chainLive: env('CHAIN_LIVE', 'true') === 'true',
   blockscoutUrl: env('BLOCKSCOUT_URL', 'https://eth.blockscout.com'),
@@ -46,7 +46,7 @@ export const config = {
   /** Biała lista hostów – żadnych zapytań do niezatwierdzonych usług. */
   allowedHosts: list(
     'ALLOWED_HOSTS',
-    '127.0.0.1,localhost,api.github.com,github.com,raw.githubusercontent.com,gist.githubusercontent.com,keybase.io,gravatar.com,en.gravatar.com,api.gravatar.com,www.reddit.com,hn.algolia.com,web.archive.org,eth.blockscout.com,blockstream.info,apilist.tronscanapi.com,api.trongrid.io',
+    '127.0.0.1,localhost,api.github.com,github.com,raw.githubusercontent.com,gist.githubusercontent.com,keybase.io,gravatar.com,en.gravatar.com,api.gravatar.com,www.reddit.com,hn.algolia.com,web.archive.org,eth.blockscout.com,blockstream.info,apilist.tronscanapi.com,api.trongrid.io,t.me,bitcointalk.org',
   ),
   /** Strona podana wprost w danych wejściowych = zgoda na jej host w tym przebiegu; strony z pivotu zawsze wymagają zatwierdzenia. */
   allowUserUrls: env('ALLOW_USER_URLS', 'true') === 'true',

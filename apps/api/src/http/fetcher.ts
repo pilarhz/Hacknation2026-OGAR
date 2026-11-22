@@ -110,9 +110,18 @@ export async function fetchText(
     });
     // Przekierowanie poza białą listę traktujemy jako zablokowane.
     if (res.url && !isHostAllowed(res.url)) throw new FetchBlockedError(`Przekierowanie poza białą listę: ${res.url}`);
-    const body = (await res.text()).slice(0, 2_000_000);
-    const fetchedAt = now();
     const contentType = res.headers.get('content-type') ?? '';
+    // Kodowanie z nagłówka (np. fora SMF wysyłają ISO-8859-1) – res.text() zawsze zakłada UTF-8.
+    const buf = await res.arrayBuffer();
+    const charset = /charset=["']?([\w-]+)/i.exec(contentType)?.[1]?.toLowerCase();
+    let decoded: string;
+    try {
+      decoded = new TextDecoder(charset ?? 'utf-8').decode(buf);
+    } catch {
+      decoded = new TextDecoder('utf-8').decode(buf); // nieznane kodowanie
+    }
+    const body = decoded.slice(0, 2_000_000);
+    const fetchedAt = now();
     opts.log?.push({ ts: fetchedAt, url, status: res.status, cache: false, ms: Date.now() - started });
     if (res.ok && !local) {
       await db().query(

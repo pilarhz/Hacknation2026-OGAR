@@ -1,74 +1,134 @@
 import type { Meta } from '../api.ts';
 
+// Metodyka: jak OGAR dochodzi do wyniku. Wartości reguł czytane z /api/meta, więc zawsze zgodne z silnikiem.
+const INDICATORS: [code: string, meaning: string, role: 'cash' | 'aux' | 'info'][] = [
+  ['CEX_OUTFLOW', 'Wpłata na adres giełdy scentralizowanej – zwykle poprzedza sprzedaż za fiat; giełda zna klienta (KYC).', 'cash'],
+  ['OFFRAMP', 'Transakcja z kantorem, bramką krypto-fiat, kartą krypto lub platformą P2P.', 'cash'],
+  ['MIXER', 'Transakcja z mikserem – możliwe zacieranie pochodzenia środków. Zawsze osobny wniosek w raporcie.', 'aux'],
+  ['STABLECOIN_SWAP', 'Wymiana na stablecoin przez DEX. To wymiana krypto–krypto; te same środki zwykle trafiają potem na giełdę, więc nie są liczone podwójnie.', 'aux'],
+  ['LINKED_ADDRESS', 'Transakcje z innym adresem przypisanym badanemu – wspólna kontrola (podstawa reguły R7).', 'info'],
+  ['CEX_INFLOW, DEX_SWAP, STABLECOIN_FLOW', 'Wypłaty z giełdy, wymiany na DEX, duże przepływy stablecoinów.', 'info'],
+  ['NO_ACTIVITY, HIGH_ACTIVITY, DATA_LIMIT', 'Brak transakcji, profil usługi (≥ 5000 tx), analiza na próbce.', 'info'],
+];
+const ROLE = { cash: 'wyjście do fiat', aux: 'sygnał pomocniczy', info: 'informacyjny' } as const;
+
 export function MethodPage({ meta }: { meta: Meta }) {
   const p = meta.scoringParams;
   return (
     <>
-      <h1>Metodyka</h1>
-      <div className="muted" style={{ marginBottom: 12 }}>
-        Jak OGAR łączy ślady Web2 z adresami Web3 i jak liczy Wskaźnik Pewności. Algorytm jest w pełni regułowy – ten sam materiał daje zawsze ten sam wynik, a każda składowa jest widoczna w raporcie.
-      </div>
-      <div className="grid2">
-        <div className="panel">
-          <h3>1. Przebieg analizy</h3>
-          <ol>
-            <li><b>Wyszukiwanie</b> – każde źródło przyjmuje określone typy identyfikatorów (nick, e-mail, adres…). Wyniki to dokumenty z URL, czasem pobrania i SHA-256 treści.</li>
-            <li><b>Pivot</b> – identyfikatory ujawnione w dokumentach należących do badanego (e-mail w profilu, Telegram w ogłoszeniu) są wyszukiwane w kolejnym kroku (do zadanej głębokości).</li>
-            <li><b>Ekstrakcja</b> – adresy wykrywane wyrażeniami regularnymi i weryfikowane sumą kontrolną: Base58Check (BTC/LTC/DOGE/TRON), Bech32/Bech32m (SegWit/Taproot), EIP-55 (Ethereum). Kandydaci z błędną sumą trafiają na listę odrzuconych. Ten sam mechanizm działa w zakładce <a href="#/extract">Ekstraktor adresów</a>.</li>
-            <li><b>Przypisanie autorstwa</b> – adres jest przypisywany badanemu tylko wtedy, gdy opublikował go autor zgodny z identyfikatorem badanego albo dokument należy do badanego. Adres wklejony przez inną osobę ma status „brak przypisania”. Autor, który ostrzega przed adresem („scam”, „nie wysyłajcie”), nie jest uznawany za jego właściciela.</li>
-            <li><b>Tożsamość kont</b> – ten sam nick w dwóch serwisach nie oznacza tej samej osoby. Konta łączymy w grupy tylko twardymi powiązaniami (odnośnik, wspólny e-mail/Telegram/telefon, dowód Keybase, dane wejściowe); konto spoza potwierdzonej grupy dostaje karę R9. Sam nick to więc słaba kotwica – najpewniejszym wejściem jest URL profilu, e-mail lub Telegram.</li>
-            <li><b>Wykluczenia</b> – adresy giełd, kontraktów, mikserów, kantorów i zbiórek nie są przypisywane osobie (0%), ale interakcje z nimi są odnotowywane jako wskaźniki (np. wyjście do fiat). Źródła: lista startowa, <a href="#/labels">etykiety analityka</a>, etykiety eksploratorów (Blockscout, Tronscan) i flaga kontraktu (bytecode ≠ 0x).</li>
-            <li><b>On-chain</b> – wolumen, okres aktywności, kontrahenci z etykietami, wskaźniki wyjścia do fiat (Blockscout, Esplora, TronGrid). Przepływ środków obejmuje adresy przypisane badanemu, czyli z wynikiem ≥ 40%.</li>
-            <li><b>Wnioski</b> – generowane z wyników, zawsze z informacją, co należy zweryfikować.</li>
-          </ol>
+      <div className="page-head">
+        <div>
+          <h1>Metodyka</h1>
+          <p className="lead">
+            Jak OGAR łączy ślady z internetu z adresami kryptowalut i jak liczy Wskaźnik Pewności. Algorytm jest regułowy: ten sam materiał zawsze daje ten sam wynik, a każda
+            składowa jest widoczna w szczegółach adresu i w raporcie.
+          </p>
         </div>
-        <div className="panel">
-          <h3>2. Wskaźnik Pewności – wartość bazowa (kontekst publikacji)</h3>
+      </div>
+
+      <div className="doc-h"><span className="n">1.</span> Przebieg analizy</div>
+      <div className="panel">
+        <ol style={{ margin: 0 }}>
+          <li><b>Wyszukiwanie.</b> Każde źródło przyjmuje określone typy identyfikatorów. Każdy pobrany dokument jest zapisywany z adresem URL, czasem pobrania i skrótem SHA-256.</li>
+          <li>
+            <b>Pivot.</b> Identyfikatory ujawnione w dokumentach należących do badanego (e-mail w profilu, Telegram w ogłoszeniu, link do innego konta) są wyszukiwane w kolejnym
+            kroku, do zadanej głębokości. Przy wejściu typu adres tropem staje się autor publikacji – chyba że ostrzega przed adresem („scam”, „nie wysyłajcie”).
+          </li>
+          <li>
+            <b>Wyodrębnianie adresów.</b> Kandydaci są weryfikowani sumą kontrolną: Base58Check (BTC, LTC, DOGE, TRON), Bech32/Bech32m (SegWit, Taproot), EIP-55 (Ethereum).
+            Ciągi z błędną sumą trafiają na listę odrzuconych. Ten sam mechanizm działa w zakładce <a href="#/extract">Ekstraktor adresów</a>.
+          </li>
+          <li><b>Autorstwo.</b> Adres jest przypisany badanemu tylko wtedy, gdy opublikował go badany. Adres wklejony przez inną osobę w tym samym wątku ma status „brak przypisania”.</li>
+          <li>
+            <b>Tożsamość kont.</b> Ten sam nick w dwóch serwisach nie oznacza tej samej osoby. Konta łączymy tylko twardymi dowodami: jawnym odnośnikiem, wspólnym e-mailem,
+            Telegramem lub telefonem albo dowodem Keybase. Dlatego najpewniejszym wejściem jest URL profilu, e-mail lub Telegram, a nie sam nick.
+          </li>
+          <li><b>Kontekst publikacji.</b> Reguły K1–K8 rozpoznają profil, ogłoszenie, komunikator, stopkę e-mail, forum i giveaway – od kontekstu zależy wartość bazowa wyniku.</li>
+          <li><b>On-chain i wykluczenia.</b> Dla znalezionych adresów pobierane są transakcje i etykiety, a z nich liczone wskaźniki (sekcje 3–4).</li>
+          <li><b>Wnioski.</b> Generowane z wyników, każdy z podstawą i wskazaniem, co należy zweryfikować.</li>
+        </ol>
+      </div>
+
+      <div className="doc-h"><span className="n">2.</span> Wskaźnik Pewności</div>
+      <div className="grid2">
+        <div className="panel flush">
           <table>
+            <thead><tr><th>Kontekst publikacji (wartość bazowa)</th><th className="right">Baza</th><th>Przedział</th></tr></thead>
             <tbody>
               {Object.entries(meta.contexts).map(([k, c]) => (
-                <tr key={k}><td>{c.label}</td><td><b>{c.base}%</b></td><td className="muted small">{c.band}</td></tr>
+                <tr key={k}><td>{c.label}</td><td className="right"><b>{c.base}</b></td><td className="muted small">{c.band}</td></tr>
               ))}
-              <tr><td>Giełda, kontrakt, mikser, zbiórka, kantor (wykluczenie)</td><td><b>0%</b></td><td className="muted small">E1/E2</td></tr>
-              <tr><td>Adres opublikowany przez inną osobę</td><td><b>{p.notAttributedScore}%</b></td><td className="muted small">R0</td></tr>
+              <tr><td>Adres opublikowany przez inną osobę (R0)</td><td className="right"><b>{p.notAttributedScore}</b></td><td className="muted small">brak przypisania</td></tr>
+              <tr><td>Giełda, kontrakt, mikser, zbiórka, kantor (E1/E2)</td><td className="right"><b>0</b></td><td className="muted small">wykluczenie</td></tr>
             </tbody>
           </table>
-          <h3>3. Modyfikatory</h3>
+        </div>
+        <div className="panel flush">
           <table>
+            <thead><tr><th>Premie i kary</th><th className="right">Wartość</th></tr></thead>
             <tbody>
-              <tr><td>R6 · synergia: ≥2 niezależne serwisy (różne domeny)</td><td className="plus">+{p.synergyBonus}</td></tr>
-              <tr><td>R7 · transakcje z innym adresem badanego (≥60%)</td><td className="plus">+{p.onChainLinkBonus}</td></tr>
-              <tr><td>R4 · pole strukturalne / konto zweryfikowane</td><td className="plus">+{p.verifiedBonus}</td></tr>
-              <tr><td>R2 · identyfikator z pivotu (za każdy krok, max {p.pivotPenaltyMax})</td><td className="minus">−{p.pivotPenaltyPerHop}</td></tr>
-              <tr><td>R3 · nick zgodny po normalizacji / częściowo</td><td className="minus">−{p.normalizedMatchPenalty} / −{p.partialMatchPenalty}</td></tr>
-              <tr><td>R5 · adres tylko w archiwalnej wersji strony</td><td className="minus">−{p.archivedPenalty}</td></tr>
-              <tr><td>R8 · bardzo duża liczba transakcji (profil usługi)</td><td className="minus">−{p.highActivityPenalty}</td></tr>
-              <tr><td>R9 · konto połączone z badanym tylko zgodnym nickiem (brak odnośnika / wspólnego kontaktu); zniesiona, gdy działa R7</td><td className="minus">−{p.unconfirmedNickPenalty}</td></tr>
-              <tr><td>R10 · tożsamość wywnioskowana tylko z publikacji adresu wejściowego</td><td className="minus">−{p.weakIdentityPenalty}</td></tr>
+              <tr><td>R6 · synergia: adres w ≥ 2 niezależnych serwisach (różne domeny)</td><td className="right plus">+{p.synergyBonus}</td></tr>
+              <tr><td>R7 · transakcje z innym adresem badanego (≥ 60%); znosi karę R9</td><td className="right plus">+{p.onChainLinkBonus}</td></tr>
+              <tr><td>R4 · adres w polu profilu (podpis Keybase, portfel Gravatar) lub konto zweryfikowane</td><td className="right plus">+{p.verifiedBonus}</td></tr>
+              <tr><td>R2 · autor znaleziony przez pivot, za każdy krok (maks. −{p.pivotPenaltyMax})</td><td className="right minus">−{p.pivotPenaltyPerHop}</td></tr>
+              <tr><td>R3 · nick zgodny po normalizacji / tylko częściowo</td><td className="right minus">−{p.normalizedMatchPenalty} / −{p.partialMatchPenalty}</td></tr>
+              <tr><td>R5 · adres tylko w archiwalnej wersji strony</td><td className="right minus">−{p.archivedPenalty}</td></tr>
+              <tr><td>R8 · bardzo duża liczba transakcji (profil usługi)</td><td className="right minus">−{p.highActivityPenalty}</td></tr>
+              <tr><td>R9 · konto łączy z badanym tylko zgodny nick</td><td className="right minus">−{p.unconfirmedNickPenalty}</td></tr>
+              <tr><td>R10 · tożsamość ustalona tylko przez wyszukiwanie odwrotne</td><td className="right minus">−{p.weakIdentityPenalty}</td></tr>
+              <tr><td>MAX · obcięcie do {p.maxScore}%</td><td className="right muted">jawny wiersz</td></tr>
             </tbody>
           </table>
-          <div className="small muted">Wynik = najlepszy dowód + premie − kary, ograniczony do 0–{p.maxScore}% (ocena heurystyczna, nie pewność); obcięcie do limitu jest jawnym wierszem MAX. Wielokrotne wystąpienie w jednym serwisie nie podnosi wyniku.</div>
         </div>
       </div>
+      <div className="panel small">
+        <b>Wynik</b> = najlepszy dowód + premie − kary, w granicach 0–{p.maxScore}%. Składowe zawsze sumują się do wyniku. Wielokrotne wystąpienie w jednym serwisie nie
+        podnosi wyniku. Adres jest <b>przypisany badanemu od 40%</b>. Wskaźnik to ocena siły powiązania adresu z identyfikatorami badanego, a nie dowód tożsamości.
+      </div>
+
+      <div className="doc-h"><span className="n">3.</span> Wykluczenia</div>
       <div className="panel">
-        <h3>4. Wskaźniki wyjścia do walut tradycyjnych (Fiat Cash-Out)</h3>
-        <ul>
-          <li><b>CEX_OUTFLOW</b> – wpłata na adres giełdy scentralizowanej (zwykle poprzedza sprzedaż za fiat; dane KYC u giełdy).</li>
-          <li><b>OFFRAMP / P2P</b> – interakcja z kantorem, bramką krypto-fiat, kartą krypto lub platformą P2P.</li>
-          <li>Pomocniczo: <b>STABLECOIN_SWAP</b> – wymiana na stablecoin przez DEX; to wymiana krypto–krypto, więc nie jest liczona jako wyjście do fiat (te same środki zwykle trafiają potem na giełdę).</li>
-          <li>Dodatkowo: <b>MIXER</b> (zacieranie pochodzenia), <b>LINKED_ADDRESS</b> (wspólna kontrola), <b>CEX_INFLOW</b>, <b>NO_ACTIVITY</b>, <b>HIGH_ACTIVITY</b>.</li>
+        <ul style={{ margin: 0 }}>
+          <li><b>E1 · etykiety:</b> lista startowa, <a href="#/labels">etykiety analityka</a> i tagi eksploratorów (Blockscout, Tronscan).</li>
+          <li><b>E2 · smart kontrakt:</b> adres zawiera kod wykonywalny (bytecode ≠ 0x).</li>
+          <li>Wykluczony adres nie jest przypisywany osobie (0%), ale interakcja z nim zostaje odnotowana – np. wpłata badanego na adres giełdy.</li>
         </ul>
-        <h3>5. Źródła i bezpieczeństwo</h3>
+      </div>
+
+      <div className="doc-h"><span className="n">4.</span> Wskaźniki on-chain</div>
+      <div className="panel flush">
         <table>
+          <thead><tr><th>Kod</th><th>Znaczenie</th><th>Rola</th></tr></thead>
           <tbody>
-            {meta.sources.map((s) => (
-              <tr key={s.id}><td><b>{s.label}</b> {s.synthetic && <span className="tag syn">syntetyczne</span>}</td><td className="small">{s.description}</td><td className="small mono">{s.hosts.join(', ')}</td></tr>
+            {INDICATORS.map(([code, meaning, role]) => (
+              <tr key={code}>
+                <td className="mono small nowrap">{code}</td>
+                <td className="small">{meaning}</td>
+                <td className="nowrap"><span className={`tag ${role === 'cash' ? 'cash' : ''}`}>{ROLE[role]}</span></td>
+              </tr>
             ))}
           </tbody>
         </table>
-        <div className="small muted" style={{ marginTop: 8 }}>
-          Aplikacja łączy się wyłącznie z hostami z białej listy ({meta.config.allowedHosts.length} pozycji) i loguje każde zapytanie. Strona z nieznanego hosta, znaleziona w trakcie analizy, nie jest pobierana, dopóki analityk nie zatwierdzi hosta. AI jest domyślnie wyłączone; po włączeniu korzysta z wymiennego, lokalnego modelu (API zgodne z OpenAI, np. Ollama) i nie zmienia wyniku.
-        </div>
+      </div>
+
+      <div className="doc-h"><span className="n">5.</span> Źródła</div>
+      <div className="panel flush">
+        <table>
+          <thead><tr><th>Źródło</th><th>Opis</th><th>Hosty</th></tr></thead>
+          <tbody>
+            {meta.sources.map((s) => (
+              <tr key={s.id}>
+                <td className="nowrap"><b>{s.label}</b> {s.synthetic && <span className="tag syn">syntetyczne</span>}</td>
+                <td className="small">{s.description}</td>
+                <td className="small mono">{s.hosts.join(', ')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="panel small">
+        Aplikacja łączy się wyłącznie z hostami z białej listy ({meta.config.allowedHosts.length} pozycji) i zapisuje każde zapytanie. Strona z nieznanego hosta, znaleziona
+        w trakcie analizy, jest pobierana dopiero po zatwierdzeniu hosta przez analityka.
       </div>
     </>
   );
