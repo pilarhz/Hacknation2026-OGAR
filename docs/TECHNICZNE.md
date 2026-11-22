@@ -7,6 +7,7 @@ Szczegóły dla osób, które będą uruchamiać, utrzymywać albo rozwijać OGA
 - [Model danych](#model-danych)
 - [API REST](#api-rest)
 - [Rozbudowa](#rozbudowa)
+- [Licencje i usługi zewnętrzne](#licencje-i-usługi-zewnętrzne)
 
 ---
 
@@ -187,3 +188,39 @@ Dodaj je w UI (*Etykiety adresów*) albo w [`data/labels.json`](../apps/api/data
 
 2. Dodaj strony w [`apps/sandbox/sites.ts`](../apps/sandbox/sites.ts) i transakcje w [`data/chain-fixtures.json`](../apps/api/data/chain-fixtures.json).
 3. Dodaj test w [`test/scenarios.test.ts`](../apps/api/test/scenarios.test.ts) i preset w `apps/web/src/pages/NewPage.tsx`.
+
+---
+
+## Licencje i usługi zewnętrzne
+
+Kod OGAR jest na licencji [MIT](../LICENSE). Wszystkie zależności są open source:
+
+| Komponent | Wersja | Licencja |
+|---|---|---|
+| fastify, @fastify/cors, @fastify/static | 5.12 / 11.4 / 10.1 | MIT |
+| cheerio | 1.2 | MIT |
+| @noble/hashes (keccak-256) | 1.8 | MIT |
+| react, react-dom | 19.3 | MIT |
+| vite, @vitejs/plugin-react | 6.4 / 4.7 | MIT |
+| czcionki @fontsource: Saira Stencil One, IBM Plex Sans, IBM Plex Mono | 5.3 | OFL-1.1 |
+| typescript | 5.9 | Apache-2.0 |
+| pg (sterownik PostgreSQL) | 8.23 | MIT |
+| @electric-sql/pglite (wbudowany PostgreSQL) | 0.5 | Apache-2.0 |
+| PostgreSQL (obraz `postgres:17-alpine`) | 17 | PostgreSQL License |
+| Node.js (`node:test`) | 24 | MIT |
+
+`npm audit`: 0 podatności (21.11.2026).
+
+Usługi zewnętrzne są publiczne i używane bez kluczy, zgodnie z ich warunkami:
+
+| Usługa | Do czego | Warunki |
+|---|---|---|
+| GitHub REST API | profile, README, gisty | GitHub ToS, 60 zapytań/h bez tokenu |
+| Keybase API | dowody tożsamości, podpisane adresy | Keybase Terms |
+| Gravatar API | profil po hashu e-maila | Gravatar/Automattic ToS |
+| Reddit JSON | wypowiedzi | Reddit Data API Terms (dziś wymaga OAuth) |
+| HN Algolia API | profile, komentarze, wyszukiwanie | publiczne API Algolia dla HN |
+| Internet Archive (Wayback CDX) | wersje archiwalne | Internet Archive Terms of Use |
+| Blockscout | dane Ethereum, etykiety, flaga kontraktu | publiczna instancja; GPL-3.0, można hostować samemu |
+| Blockstream Esplora | dane Bitcoin | publiczne API; MIT, można hostować samemu |
+| TronGrid | dane TRON | TronGrid Terms (bez klucza niskie limity) |
