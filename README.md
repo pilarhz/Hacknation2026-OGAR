@@ -17,7 +17,21 @@ Osoby zarabiające na kryptowalutach publikują adresy portfeli na forach, w pro
 
 > Tylko publiczne źródła: bez logowania na cudze konta i bez obchodzenia zabezpieczeń. Połączenia wyłącznie z hostami z białej listy, a każde zapytanie trafia do rejestru.
 
-**Spis treści:** [Uruchomienie](#uruchomienie) · [Scenariusze testowe](#scenariusze-testowe) · [Zrzuty ekranu](#zrzuty-ekranu) · [Jak to działa](#jak-to-działa) · [Wskaźnik Pewności](#wskaźnik-pewności) · [Wykluczenia i wyjście do fiat](#wykluczenia-i-wyjście-do-fiat) · [Raport](#raport) · [Parametry wyszukiwania](#parametry-wyszukiwania) · [AI](#ai-opcjonalnie) · [Architektura i bezpieczeństwo](#architektura-i-bezpieczeństwo) · [Zgodność z wymaganiami](#zgodność-z-wymaganiami) · [Licencje](#licencje) · [Ograniczenia](#ograniczenia)
+**Spis treści**
+
+1. [Uruchomienie](#uruchomienie)
+2. [Scenariusze testowe](#scenariusze-testowe)
+3. [Zrzuty ekranu](#zrzuty-ekranu)
+4. [Jak to działa](#jak-to-działa)
+5. [Wskaźnik Pewności](#wskaźnik-pewności)
+6. [Wykluczenia i wyjście do fiat](#wykluczenia-i-wyjście-do-fiat)
+7. [Raport](#raport)
+8. [Parametry wyszukiwania](#parametry-wyszukiwania)
+9. [AI (opcjonalnie)](#ai-opcjonalnie)
+10. [Architektura i bezpieczeństwo](#architektura-i-bezpieczeństwo)
+11. [Zgodność z wymaganiami](#zgodność-z-wymaganiami)
+12. [Licencje](#licencje)
+13. [Ograniczenia](#ograniczenia)
 
 ---
 
