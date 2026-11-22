@@ -3,10 +3,12 @@ import { api, fmtDate, fmtNum, shortAddr, SCHEDULES, type CompareResult, type In
 import { go } from '../App.tsx';
 import { ScoreBadge, ScoreBar, BAND_SHORT, Chain } from '../components/Score.tsx';
 import { AddressDetail } from '../components/AddressDetail.tsx';
+import { RelationMap } from '../components/RelationMap.tsx';
+import { ConfirmDialog } from '../components/ConfirmDialog.tsx';
 
 const LEVEL_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
-type Tab = 'summary' | 'addresses' | 'timeline' | 'sources' | 'compare' | 'log';
+type Tab = 'summary' | 'addresses' | 'map' | 'timeline' | 'sources' | 'compare' | 'log';
 
 export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
   const [inv, setInv] = useState<Investigation | null>(null);
@@ -17,6 +19,10 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [doc, setDoc] = useState<{ title: string; url: string; content: string; sha256: string; fetched_at: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [delErr, setDelErr] = useState<string | null>(null);
+  const closeConfirm = useCallback(() => setConfirmDel(false), []);
 
   const load = useCallback(async () => {
     try {
@@ -116,11 +122,10 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
               )}
               <button
                 className="danger"
-                onClick={async () => {
-                  if (confirm('Usunąć analizę wraz z wszystkimi przebiegami i zapisanymi dokumentami?')) {
-                    await api.remove(inv.id);
-                    go('/');
-                  }
+                onClick={(e) => {
+                  e.currentTarget.closest('details')?.removeAttribute('open');
+                  setDelErr(null);
+                  setConfirmDel(true);
                 }}
               >
                 Usuń analizę…
@@ -182,6 +187,7 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
               [
                 ['summary', 'Podsumowanie', null],
                 ['addresses', 'Adresy', result.addresses.length],
+                ['map', 'Mapa powiązań', null],
                 ['timeline', 'Przepływ środków', result.timeline.length],
                 ['sources', 'Źródła i tożsamość', result.documents.length],
                 ['compare', 'Zmiany w czasie', null],
@@ -209,6 +215,16 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
             />
           )}
           {tab === 'addresses' && <Addresses r={result} meta={meta} selected={selected} setSelected={setSelected} openDoc={openDoc} />}
+          {tab === 'map' && (
+            <RelationMap
+              r={result}
+              meta={meta}
+              onOpenAddress={(k) => {
+                setSelected(k);
+                setTab('addresses');
+              }}
+            />
+          )}
           {tab === 'timeline' && <Timeline r={result} meta={meta} />}
           {tab === 'sources' && <Sources r={result} openDoc={openDoc} />}
           {tab === 'compare' && <Compare runs={runs.filter((r) => r.status === 'done')} current={runId!} />}
@@ -233,6 +249,37 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
             <pre>{doc.content}</pre>
           </div>
         </div>
+      )}
+
+      {confirmDel && (
+        <ConfirmDialog
+          title="Przenieść analizę do kosza?"
+          confirmLabel="Przenieś do kosza"
+          busyLabel="Przenoszenie…"
+          danger
+          busy={deleting}
+          error={delErr}
+          onCancel={closeConfirm}
+          onConfirm={async () => {
+            setDeleting(true);
+            setDelErr(null);
+            try {
+              await api.remove(inv.id);
+              go('/');
+            } catch (e) {
+              setDelErr(`Nie udało się usunąć analizy: ${e instanceof Error ? e.message : String(e)}`);
+              setDeleting(false);
+            }
+          }}
+        >
+          <p>
+            Analiza <b>{inv.name}</b> razem z przebiegami ({runs.length}) i zapisanymi dokumentami trafi do kosza
+            {inv.scheduleMinutes ? ', a analiza cykliczna zostanie wstrzymana' : ''}.
+          </p>
+          <p className="muted small">
+            Przez 30 dni możesz ją przywrócić z <a href="#/trash">kosza</a>. Potem zostanie usunięta na stałe.
+          </p>
+        </ConfirmDialog>
       )}
     </>
   );

@@ -123,6 +123,28 @@ test('Harmonogram uruchamia analizę cykliczną; usunięcie sprawy usuwa kaskado
   assert.equal(Number(orphans!.n), 0);
 });
 
+test('Kosz: usunięta analiza znika z listy, wraca po przywróceniu, a po 30 dniach jest kasowana na stałe', async () => {
+  const inv = await store.createInvestigation({ name: 'kosz-test', seeds: [{ kind: 'nick', value: 'kosz' }] });
+  assert.equal(await store.trashInvestigation(inv.id), true);
+  assert.equal(await store.trashInvestigation(inv.id), false, 'drugi raz już nic nie robi');
+  assert.equal(await store.getInvestigation(inv.id), null, 'analiza w koszu jest niewidoczna');
+  assert.ok(!(await store.listInvestigations()).some((i) => i.id === inv.id));
+  const item = (await store.listTrash()).find((t) => t.id === inv.id);
+  assert.ok(item, 'jest w koszu');
+  assert.equal(Date.parse(item!.purgeAt) - Date.parse(item!.deletedAt), store.TRASH_DAYS * 86_400_000);
+
+  assert.equal(await store.restoreInvestigation(inv.id), true);
+  assert.ok((await store.listInvestigations()).some((i) => i.id === inv.id), 'wraca na listę');
+  assert.ok(!(await store.listTrash()).some((t) => t.id === inv.id));
+  assert.equal(await store.purgeTrashed(inv.id), false, 'analizy spoza kosza nie da się skasować na stałe');
+
+  await store.trashInvestigation(inv.id);
+  await db().query("UPDATE investigations SET deleted_at = now() - interval '31 days' WHERE id = $1", [inv.id]);
+  assert.ok((await store.purgeExpiredTrash()) >= 1);
+  const left = await db().one<{ n: string }>('SELECT COUNT(*) AS n FROM investigations WHERE id = $1', [inv.id]);
+  assert.equal(Number(left!.n), 0, 'po 30 dniach usunięta na stałe');
+});
+
 test('Znak NUL w treści z internetu nie psuje zapisu (Postgres go nie akceptuje w TEXT/JSONB)', async () => {
   const { toJsonb } = await import('../src/db/db.ts');
   await db().query('INSERT INTO http_cache (url, fetched_at, status, content_type, body) VALUES ($1, now(), 200, $2, $3)', ['https://nul.example/', 'text/plain', 'a\u0000b']);

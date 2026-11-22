@@ -19,14 +19,18 @@ import {
   approveHost,
   compareRuns,
   createInvestigation,
-  deleteInvestigation,
   getDocument,
   getInvestigation,
   getRunResult,
   listInvestigations,
   listRuns,
+  listTrash,
+  purgeTrashed,
+  restoreInvestigation,
   startRun,
   startScheduler,
+  trashInvestigation,
+  TRASH_DAYS,
   updateSchedule,
 } from './engine/store.ts';
 import { renderReport } from './report/report.ts';
@@ -136,8 +140,21 @@ app.get<{ Params: { id: string } }>('/api/investigations/:id', async (req, reply
   return { investigation: inv, runs: await listRuns(inv.id) };
 });
 
-app.delete<{ Params: { id: string } }>('/api/investigations/:id', async (req) => {
-  await deleteInvestigation(req.params.id);
+// Usunięcie = przeniesienie do kosza (przywracalne przez TRASH_DAYS dni).
+app.delete<{ Params: { id: string } }>('/api/investigations/:id', async (req, reply) => {
+  if (!(await trashInvestigation(req.params.id))) return reply.code(404).send({ error: 'Nie znaleziono' });
+  return { ok: true, trashDays: TRASH_DAYS };
+});
+
+app.get('/api/trash', async () => ({ days: TRASH_DAYS, items: await listTrash() }));
+
+app.post<{ Params: { id: string } }>('/api/trash/:id/restore', async (req, reply) => {
+  if (!(await restoreInvestigation(req.params.id))) return reply.code(404).send({ error: 'Nie ma tej analizy w koszu' });
+  return { ok: true };
+});
+
+app.delete<{ Params: { id: string } }>('/api/trash/:id', async (req, reply) => {
+  if (!(await purgeTrashed(req.params.id))) return reply.code(404).send({ error: 'Nie ma tej analizy w koszu' });
   return { ok: true };
 });
 

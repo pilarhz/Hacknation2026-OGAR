@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS documents (
   content      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS documents_run ON documents(run_id);
+-- Kosz: usunięta analiza ma deleted_at; po 30 dniach jest kasowana na stałe (purgeExpiredTrash).
+ALTER TABLE investigations ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS investigations_deleted ON investigations(deleted_at);
 CREATE TABLE IF NOT EXISTS http_cache (
   url          TEXT PRIMARY KEY,
   fetched_at   TIMESTAMPTZ NOT NULL,

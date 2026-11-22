@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, fmtDate, fmtSchedule, type InvestigationListItem } from '../api.ts';
+import { api, fmtDate, fmtSchedule, INVESTIGATIONS_CHANGED, type InvestigationListItem } from '../api.ts';
 import { go } from '../App.tsx';
 
 const bandOf = (s: number) => (s >= 80 ? 'VERY_HIGH' : s >= 60 ? 'PROBABLE' : s >= 40 ? 'MEDIUM' : s > 0 ? 'LOW' : 'NOT_ATTRIBUTED');
@@ -10,7 +10,11 @@ export function ListPage() {
   useEffect(() => {
     load();
     const t = setInterval(load, 5000);
-    return () => clearInterval(t);
+    window.addEventListener(INVESTIGATIONS_CHANGED, load);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener(INVESTIGATIONS_CHANGED, load);
+    };
   }, []);
   if (!items) return <div className="empty"><div className="spinner" style={{ margin: '0 auto 10px' }} />Ładowanie…</div>;
   return (

@@ -27,11 +27,33 @@ export class ApiError extends Error {
 
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
   // Token (jeśli serwer go wymaga) jest w ciasteczku HttpOnly ustawianym przez /api/login.
-  const res = await fetch(url, { credentials: 'same-origin', ...init, headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) } });
+  // Content-Type tylko gdy jest treść: Fastify odrzuca (400) żądanie z nagłówkiem JSON i pustym body,
+  // przez co np. DELETE /api/investigations/:id kończył się błędem.
+  const headers = { ...(init?.body != null ? { 'Content-Type': 'application/json' } : {}), ...(init?.headers ?? {}) };
+  const res = await fetch(url, { credentials: 'same-origin', ...init, headers });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError((body as { error?: string; message?: string }).error ?? (body as { message?: string }).message ?? `HTTP ${res.status}`, res.status);
   return body as T;
 }
+
+export interface TrashItem {
+  id: string;
+  name: string;
+  caseRef: string | null;
+  deletedAt: string;
+  purgeAt: string;
+  runCount: number;
+}
+
+// Sygnał „lista analiz się zmieniła" (usunięcie, przywrócenie, nowa analiza): menu boczne i lista
+// odświeżają się od razu, zamiast czekać na kolejne odpytanie serwera.
+export const INVESTIGATIONS_CHANGED = 'ogar:investigations-changed';
+export const notifyInvestigationsChanged = () => window.dispatchEvent(new Event(INVESTIGATIONS_CHANGED));
+const changed = async <T,>(p: Promise<T>) => {
+  const r = await p;
+  notifyInvestigationsChanged();
+  return r;
+};
 
 export const api = {
   login: (token: string) => req<{ ok: boolean }>('/api/login', { method: 'POST', body: JSON.stringify({ token }) }),
@@ -39,9 +61,13 @@ export const api = {
   meta: () => req<Meta>('/api/meta'),
   list: () => req<InvestigationListItem[]>('/api/investigations'),
   create: (body: { name: string; caseRef?: string; seeds: { kind: string; value: string }[]; options: Partial<InvestigationOptions>; scheduleMinutes: number | null }) =>
-    req<{ investigation: Investigation; runId: string }>('/api/investigations', { method: 'POST', body: JSON.stringify(body) }),
+    changed(req<{ investigation: Investigation; runId: string }>('/api/investigations', { method: 'POST', body: JSON.stringify(body) })),
   get: (id: string) => req<{ investigation: Investigation; runs: RunRow[] }>(`/api/investigations/${id}`),
-  remove: (id: string) => req<{ ok: boolean }>(`/api/investigations/${id}`, { method: 'DELETE' }),
+  /** Przenosi analizę do kosza (przywracalna przez `trashDays` dni). */
+  remove: (id: string) => changed(req<{ ok: boolean; trashDays: number }>(`/api/investigations/${id}`, { method: 'DELETE' })),
+  trash: () => req<{ days: number; items: TrashItem[] }>('/api/trash'),
+  restore: (id: string) => changed(req<{ ok: boolean }>(`/api/trash/${id}/restore`, { method: 'POST', body: '{}' })),
+  purge: (id: string) => changed(req<{ ok: boolean }>(`/api/trash/${id}`, { method: 'DELETE' })),
   schedule: (id: string, minutes: number | null) => req(`/api/investigations/${id}/schedule`, { method: 'PUT', body: JSON.stringify({ minutes }) }),
   rerun: (id: string) => req<{ runId: string }>(`/api/investigations/${id}/runs`, { method: 'POST', body: '{}' }),
   run: (id: string) => req<{ run: RunRow; result: RunResult; investigation: Investigation }>(`/api/runs/${id}`),

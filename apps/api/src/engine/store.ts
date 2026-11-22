@@ -72,6 +72,7 @@ export async function listInvestigations() {
               WHERE NOT (a -> 'score' ->> 'excluded')::boolean) AS top_score
      FROM investigations i
      LEFT JOIN LATERAL (SELECT r.result FROM runs r WHERE r.investigation_id = i.id AND r.status = 'done' ORDER BY seq DESC LIMIT 1) last ON true
+     WHERE i.deleted_at IS NULL
      ORDER BY i.updated_at DESC`,
   );
   return rows.map((r) => ({
@@ -84,7 +85,8 @@ export async function listInvestigations() {
 }
 
 export async function getInvestigation(id: string): Promise<Investigation | null> {
-  const r = await db().one('SELECT * FROM investigations WHERE id = $1', [id]);
+  // analiza w koszu jest dla reszty aplikacji niewidoczna (404), dopóki nie zostanie przywrócona
+  const r = await db().one('SELECT * FROM investigations WHERE id = $1 AND deleted_at IS NULL', [id]);
   return r ? rowToInv(r) : null;
 }
 
@@ -117,9 +119,77 @@ export async function approveHost(id: string, host: string): Promise<Investigati
   return getInvestigation(id);
 }
 
+/** Trwałe usunięcie analizy razem z przebiegami i dokumentami (ON DELETE CASCADE). */
 export async function deleteInvestigation(id: string) {
   await db().query('DELETE FROM investigations WHERE id = $1', [id]);
   await audit('investigation.delete', { id });
+}
+
+// ---------------- Kosz ----------------
+/** Ile dni analiza leży w koszu, zanim zostanie usunięta na stałe. */
+export const TRASH_DAYS = 30;
+
+export interface TrashItem {
+  id: string;
+  name: string;
+  caseRef: string | null;
+  deletedAt: string;
+  purgeAt: string;
+  runCount: number;
+}
+
+/** Przeniesienie do kosza: analiza znika z listy, harmonogram jej nie uruchamia; można ją przywrócić przez TRASH_DAYS dni. */
+export async function trashInvestigation(id: string): Promise<boolean> {
+  const rows = await db().query('UPDATE investigations SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id', [id]);
+  if (rows.length) await audit('investigation.trash', { id });
+  return rows.length > 0;
+}
+
+export async function restoreInvestigation(id: string): Promise<boolean> {
+  // po przywróceniu analiza cykliczna nie nadrabia zaległych przebiegów: następny termin liczony od teraz
+  const rows = await db().query(
+    `UPDATE investigations SET deleted_at = NULL, updated_at = now(),
+       next_run_at = CASE WHEN schedule_minutes IS NULL THEN NULL ELSE now() + make_interval(mins => schedule_minutes) END
+     WHERE id = $1 AND deleted_at IS NOT NULL RETURNING id`,
+    [id],
+  );
+  if (rows.length) await audit('investigation.restore', { id });
+  return rows.length > 0;
+}
+
+export async function listTrash(): Promise<TrashItem[]> {
+  const rows = await db().query(
+    `SELECT i.id, i.name, i.case_ref, i.deleted_at,
+            (SELECT COUNT(*) FROM runs r WHERE r.investigation_id = i.id) AS run_count
+     FROM investigations i WHERE i.deleted_at IS NOT NULL ORDER BY i.deleted_at DESC`,
+  );
+  return rows.map((r) => {
+    const deletedAt = iso(r.deleted_at)!;
+    return {
+      id: String(r.id),
+      name: String(r.name),
+      caseRef: (r.case_ref as string) ?? null,
+      deletedAt,
+      purgeAt: new Date(Date.parse(deletedAt) + TRASH_DAYS * 86_400_000).toISOString(),
+      runCount: Number(r.run_count),
+    };
+  });
+}
+
+/** Trwałe usunięcie analizy, która jest w koszu (analizy spoza kosza nie da się tak skasować). */
+export async function purgeTrashed(id: string): Promise<boolean> {
+  const rows = await db().query('DELETE FROM investigations WHERE id = $1 AND deleted_at IS NOT NULL RETURNING id', [id]);
+  if (rows.length) await audit('investigation.purge', { id });
+  return rows.length > 0;
+}
+
+/** Usuwa na stałe analizy leżące w koszu dłużej niż TRASH_DAYS dni. */
+export async function purgeExpiredTrash(): Promise<number> {
+  const rows = await db().query(
+    `DELETE FROM investigations WHERE deleted_at IS NOT NULL AND deleted_at < now() - make_interval(days => ${TRASH_DAYS}) RETURNING id`,
+  );
+  if (rows.length) await audit('trash.purge-expired', { count: rows.length });
+  return rows.length;
 }
 
 export async function listRuns(investigationId: string): Promise<RunRow[]> {
@@ -243,14 +313,20 @@ export async function compareRuns(aId: string, bId: string) {
 // ---------------- Harmonogram (cykliczne analizy) ----------------
 export function startScheduler(): NodeJS.Timeout {
   let busy = false;
+  let lastPurge = 0;
   return setInterval(async () => {
     if (busy) return;
     busy = true;
     try {
+      // sprzątanie kosza raz na godzinę (i przy pierwszym cyklu po starcie)
+      if (Date.now() - lastPurge > 3_600_000) {
+        lastPurge = Date.now();
+        await purgeExpiredTrash();
+      }
       // UPDATE … RETURNING: termin przesuwany atomowo – przy kilku instancjach API przebieg nie uruchomi się podwójnie.
       const due = await db().query<{ id: string }>(
         `UPDATE investigations SET next_run_at = now() + make_interval(mins => schedule_minutes)
-         WHERE schedule_minutes IS NOT NULL AND next_run_at <= now() RETURNING id`,
+         WHERE schedule_minutes IS NOT NULL AND deleted_at IS NULL AND next_run_at <= now() RETURNING id`,
       );
       for (const d of due) await startRun(d.id, 'schedule').catch(() => {}); // przebieg już trwa – kolejna próba w następnym cyklu
     } catch {

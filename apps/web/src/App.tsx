@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError, type InvestigationListItem, type Meta } from './api.ts';
+import { api, ApiError, INVESTIGATIONS_CHANGED, type InvestigationListItem, type Meta } from './api.ts';
 import { useTheme } from './theme.ts';
 
 function Login({ onDone }: { onDone: () => void }) {
@@ -35,6 +35,7 @@ import { ExtractorPage } from './pages/ExtractorPage.tsx';
 import { LabelsPage } from './pages/LabelsPage.tsx';
 import { MethodPage } from './pages/MethodPage.tsx';
 import { AboutPage } from './pages/AboutPage.tsx';
+import { TrashPage } from './pages/TrashPage.tsx';
 
 export function useHash() {
   const [hash, setHash] = useState(() => window.location.hash.slice(1) || '/');
@@ -79,13 +80,15 @@ export function App() {
   else if (parts[0] === 'labels') page = <LabelsPage meta={meta} />;
   else if (parts[0] === 'method') page = <MethodPage meta={meta} />;
   else if (parts[0] === 'about') page = <AboutPage meta={meta} />;
+  else if (parts[0] === 'trash') page = <TrashPage />;
   else page = <ListPage />;
 
   const isActive = (href: string) => (href === '/' ? parts.length === 0 || parts[0] === 'inv' : path.startsWith(href));
-  const link = (href: string, label: string, icon: React.ReactNode, cls = '') => (
+  const link = (href: string, label: string, icon: React.ReactNode, cls = '', extra: React.ReactNode = null) => (
     <a key={href} href={`#${href}`} className={`${cls} ${isActive(href) ? 'active' : ''}`} aria-current={isActive(href) ? 'page' : undefined}>
       {icon}
       {label}
+      {extra}
     </a>
   );
   return (
@@ -129,6 +132,7 @@ export function App() {
             {link('/extract', 'Ekstraktor adresów', <Icon d="M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3" />)}
             {link('/labels', 'Etykiety adresów', <Icon d="M3 12V4h8l10 10-8 8L3 12zM7.5 7.5h.01" />)}
             {link('/method', 'Metodyka', <Icon d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 17v.01M12 14a2.5 2.5 0 10-2.5-2.5" />)}
+            {link('/trash', 'Kosz', <Icon d="M3 6h18M8 6V4h8v2M6 6l1 14a1 1 0 001 1h8a1 1 0 001-1l1-14M10 11v6M14 11v6" />, '', meta ? <TrashCount /> : null)}
           </nav>
           {meta && <RecentCases current={parts[0] === 'inv' ? parts[1] : undefined} />}
           <div className="side-bottom">
@@ -164,7 +168,11 @@ function RecentCases({ current }: { current?: string }) {
     const load = () => api.list().then(setItems).catch(() => {});
     load();
     const t = setInterval(load, 15000);
-    return () => clearInterval(t);
+    window.addEventListener(INVESTIGATIONS_CHANGED, load); // usunięcie / przywrócenie / nowa analiza – od razu
+    return () => {
+      clearInterval(t);
+      window.removeEventListener(INVESTIGATIONS_CHANGED, load);
+    };
   }, []);
   if (!items.length) return null;
   const recent = [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
@@ -222,6 +230,22 @@ function SidenavPattern() {
       </svg>
     </div>
   );
+}
+
+// Liczba analiz w koszu – plakietka przy „Kosz" w menu (ukryta, gdy kosz jest pusty).
+function TrashCount() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const load = () => api.trash().then((t) => setN(t.items.length)).catch(() => {});
+    load();
+    const t = setInterval(load, 60000);
+    window.addEventListener(INVESTIGATIONS_CHANGED, load);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener(INVESTIGATIONS_CHANGED, load);
+    };
+  }, []);
+  return n > 0 ? <span className="nav-count" aria-label={`${n} w koszu`}>{n}</span> : null;
 }
 
 function Icon({ d }: { d: string }) {
