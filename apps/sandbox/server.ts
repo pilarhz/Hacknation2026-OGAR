@@ -24,6 +24,11 @@ const server = http.createServer((req, res) => {
     if (req.method === 'POST') {
       const v = Number(url.searchParams.get('value'));
       if (v === 1 || v === 2) period = v;
+      // Kliknięcie w przeglądarce → powrót na stronę główną piaskownicy (z aktualnym okresem); fetch z testów dostaje JSON.
+      if (req.headers.accept?.includes('text/html')) {
+        res.writeHead(303, { Location: '/', 'Cache-Control': 'no-store' });
+        return res.end();
+      }
     }
     return send(200, 'application/json', JSON.stringify({ period }));
   }
