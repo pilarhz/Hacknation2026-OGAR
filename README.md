@@ -2,8 +2,6 @@
 
 **HackNation 2026 · wyzwanie Ministerstwa Finansów / KAS („OSINTowy Łapacz Cyfrowych Śladów”)**
 
-🎬 **Film demonstracyjny (2:34):** https://youtu.be/cw-VEzpwTSo · 📦 **Kod:** https://github.com/pilarhz/Hacknation2026-OGAR
-
 Osoby zarabiające na kryptowalutach publikują adresy portfeli na forach, w profilach, ogłoszeniach P2P i komunikatorach, ale nie wykazują przychodów w PIT-38. Analityk KAS musi dziś ręcznie przeglądać te miejsca, łączyć konta i oceniać, czy adres na pewno należy do danej osoby.
 
 **OGAR robi to automatycznie.** Po podaniu nicku, e-maila, Telegramu, imienia i nazwiska, strony WWW albo adresu krypto:
