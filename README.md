@@ -193,7 +193,7 @@ Daty są podane w UTC. Eksport JSON i CSV jest w menu **⋯** analizy.
 | Keybase | nick, URL | dowody tożsamości i **podpisane** adresy krypto |
 | Gravatar | e-mail | profil po hashu e-maila: portfele, zweryfikowane konta |
 | Hacker News | nick, adres | profil, komentarze, wyszukiwanie adresu |
-| Telegram | Telegram, nick | publiczny podgląd kanału t.me/s/…: opis i ostatnie ~60 wiadomości z możliwym adresem, każda z permalinkiem i datą |
+| Telegram | identyfikator Telegram (@nazwa, t.me/…) – nie nick, żeby nie trafiać na kanały innych osób | publiczny podgląd kanału t.me/s/…: opis i ostatnie ~60 wiadomości z możliwym adresem, każda z permalinkiem i datą |
 | Bitcointalk | URL profilu (podany lub z pivotu) | profil z polem „Bitcoin address” i podpisem, ostatnie posty z adresami (bez cytatów innych osób); po nicku nie szuka, bo wyszukiwarka forum wymaga logowania |
 | WWW, Wayback Machine | URL | strona i do 4 jej archiwalnych wersji |
 | SearXNG *(opcjonalnie)* | wszystkie | własna instancja metawyszukiwarki |
@@ -259,15 +259,15 @@ Limity i zabezpieczenia:
 | Wymaganie zadania | Realizacja w OGAR |
 |---|---|
 | Wejście: imię i nazwisko, nick, komunikator, login, e-mail, adres krypto | formularz **Nowa analiza**, wiele identyfikatorów naraz |
-| Wyszukiwanie powiązań w otwartych źródłach | źródła Web2 i pivot |
+| Wyszukiwanie powiązań w otwartych źródłach | źródła Web2 na żywo: serwisy programistyczne (GitHub, Keybase, Gravatar, Hacker News), **komunikator** (publiczne kanały Telegram), **forum branżowe** (Bitcointalk), strony WWW i archiwum; pivot po nowych identyfikatorach |
 | Kategoryzacja i własny algorytm Wskaźnika Pewności | K1–K8, R1–R10, jawne wyliczenie |
 | Wykrywanie i wyodrębnianie adresów z tekstu | sumy kontrolne + zakładka **Ekstraktor adresów** |
 | Wskaźniki wyjścia do fiat | `CEX_OUTFLOW`, `OFFRAMP` oraz mikser i stablecoiny jako sygnały pomocnicze |
 | Odrzucanie giełd, kontraktów, adresów instytucjonalnych | E1 (etykiety), E2 (bytecode), R8 |
-| Cykliczne analizy, zapis i porównanie wyników | harmonogram, historia przebiegów, **Zmiany w czasie** |
+| Cykliczne analizy, zapis i porównanie wyników | harmonogram, historia przebiegów, **Zmiany w czasie**; przebiegów nie da się usunąć (ciągłość dowodowa) – błędny przebieg analityk **unieważnia z powodem**, a parametry poprawia i uruchamia ponownie |
 | *(opcjonalne)* Podmiana adresów w czasie | scenariusz 4, Wayback Machine |
-| Źródło, URL, data pobrania, metadane do odtworzenia | zakładka **Źródła**, pełne SHA-256, rejestr zapytań |
-| Raport: fakty / obliczenia / wnioski | **Raport OSINT** |
+| Źródło, URL, data pobrania, metadane do odtworzenia | zakładka **Źródła**, pełne SHA-256, rejestr zapytań, dziennik audytu (także unieważnień i poprawek parametrów) |
+| Raport: fakty / obliczenia / wnioski, chronologia przepływu środków | **Raport OSINT** + **mapa powiązań** (graf: wejście → pivot → źródła → adresy → usługi) |
 | Dalsza rozbudowa | interfejs źródeł, wspólny kod EVM, [TECHNICZNE.md](docs/TECHNICZNE.md#rozbudowa) |
 | Scenariusze na danych syntetycznych | piaskownica + `npm test` |
 | Node.js, React, PostgreSQL, open source, monorepo | tak |

@@ -76,13 +76,14 @@ export const telegramSource: Source = {
   id: 'telegram',
   label: 'Telegram (kanały publiczne)',
   description: 'Publiczny podgląd kanału t.me/s/… – opis kanału i ostatnie wiadomości z możliwym adresem krypto (każda z permalinkiem i datą).',
-  accepts: ['telegram', 'nick'],
+  // Tylko identyfikator typu Telegram: szukanie kanału po samym nicku trafiałoby na kanały innych osób
+  // o tym samym nicku (fałszywe przypisania) – nick łączy się z Telegramem dopiero przez twardy ślad (link t.me w treści).
+  accepts: ['telegram'],
   hosts: ['t.me'],
   async search(identifier, ctx) {
     const handle = normalizeTelegramHandle(identifier.value);
     if (!handle) return [];
-    // Telegram podany wprost to zasób badanego; sam nick może należeć do kogoś innego (R9).
-    const match: SourceDocument['subjectMatch'] = identifier.kind === 'telegram' ? 'direct' : 'search-candidate';
+    const match: SourceDocument['subjectMatch'] = 'direct';
     const docs: SourceDocument[] = [];
     let before: number | null = null;
     let page: TelegramPage | null = null;
@@ -98,7 +99,7 @@ export const telegramSource: Source = {
       page = parseTelegramPage(res.body);
       if (first) {
         if (!page.isChannel) {
-          if (identifier.kind === 'telegram') ctx.notes.push(`Telegram @${handle}: brak publicznego kanału z podglądem (konto prywatne, użytkownik albo nie istnieje).`);
+          ctx.notes.push(`Telegram @${handle}: brak publicznego kanału z podglądem (konto prywatne, użytkownik albo nie istnieje).`);
           return [];
         }
         docs.push({
