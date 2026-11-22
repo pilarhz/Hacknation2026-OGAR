@@ -166,8 +166,12 @@ export function iso(v: unknown): string | null {
 }
 
 /** Serializacja do kolumny JSONB (bez znaków NUL, których Postgres nie akceptuje). */
+// NUL usuwamy z wartości przed serializacją. Wycinanie sekwencji "\u0000" z gotowego JSON-a psuło
+// teksty zawierające dosłownie „\u0000” (np. kod w gistach/README): JSON "\\u0000" tracił 6 znaków
+// i zostawał samotny backslash – niepoprawny JSON i przebieg kończył się błędem.
+const nulFree = (_k: string, val: unknown) => (typeof val === 'string' && val.includes('\u0000') ? val.replace(/\u0000/g, '') : val);
 export function toJsonb(v: unknown): string {
-  return JSON.stringify(v).replace(/\\u0000/g, '');
+  return JSON.stringify(v, nulFree);
 }
 
 export async function audit(action: string, detail: unknown): Promise<void> {

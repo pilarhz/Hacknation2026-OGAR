@@ -4,7 +4,7 @@ import path from 'node:path';
 import { API_ROOT } from '../config.ts';
 import { db, iso, now } from '../db/db.ts';
 import type { AddressLabel, LabelCategory } from './types.ts';
-import { addressKey as keyOf, type Chain } from '../extract/addresses.ts';
+import { addressKey as keyOf, extractAddresses, type Chain } from '../extract/addresses.ts';
 
 interface SeedLabel {
   chain: Chain;
@@ -35,6 +35,23 @@ export function lookupLabel(chain: string, address: string): AddressLabel | null
   return custom.get(key) ?? seedLabels().get(key) ?? null;
 }
 
+/**
+ * Walidacja i postać kanoniczna adresu etykiety (bech32 małymi literami, EVM z sumą EIP-55).
+ * Bez tego etykieta zapisana np. jako "BC1Q…" nie pasowałaby do adresu wykrytego w tekście
+ * (klucze bech32 są małymi literami) i wykluczenie E1 po cichu by nie zadziałało.
+ */
+export function canonicalLabelAddress(chain: Chain, input: string): { address: string } | { error: string } {
+  const raw = input.trim();
+  // Solana nie ma sumy kontrolnej i ekstraktor wymaga słowa kluczowego w otoczeniu – podajemy je jawnie.
+  const prefix = chain === 'SOL' ? 'solana ' : '';
+  const m = extractAddresses(prefix + raw).matches.find((x) => x.start === prefix.length && x.end === prefix.length + raw.length);
+  if (!m) return { error: 'Niepoprawny adres (format lub suma kontrolna)' };
+  // Adres P2SH zaczynający się od „3” jest wspólny dla BTC i LTC (ten sam bajt wersji) – dopuszczamy oba.
+  const ok = m.chain === chain || (m.chain === 'BTC' && chain === 'LTC' && m.format === 'P2SH');
+  if (!ok) return { error: `Adres ma format sieci ${m.chain}, a wybrano sieć ${chain}` };
+  return { address: m.address };
+}
+
 export async function addCustomLabel(chain: Chain, address: string, name: string, category: LabelCategory, note?: string) {
   await db().query(
     `INSERT INTO custom_labels (key, chain, address, name, category, note, added_at) VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -51,15 +68,21 @@ export async function listLabels() {
 }
 
 /** Mapowanie tagów zwracanych przez eksploratory na nasze kategorie. */
+// Kolejność ma znaczenie: najpierw nazwy konkretnych usług, dopiero potem ogólne słowa („exchange”,
+// „deposit”), bo np. tag „Uniswap V1: … Exchange” to DEX, a nie giełda scentralizowana.
+// Krótkie słowa z granicami \b – inaczej „dex” pasowałoby do „index”, a „hack” do „hackathon”.
+const TAG_RULES: [RegExp, LabelCategory][] = [
+  [/tornado|mixer|blender|sinbad|wasabi|coinjoin/, 'MIXER'],
+  [/uniswap|sushiswap|1inch|0x protocol|\bcurve\b|balancer|pancakeswap|\bpancake|\bdex\b|aggregator|swap router|\brouter\b/, 'DEX'],
+  [/\bbridge\b|wormhole|stargate|hop protocol|across protocol/, 'BRIDGE'],
+  [/moonpay|\bramp\b|transak|banxa|wirex|crypto card|\bcard\b|mercuryo|simplex/, 'OFFRAMP'],
+  [/binance|coinbase|kraken|\bokx\b|bitfinex|kucoin|bybit|huobi|\bhtx\b|gate\.io|bitstamp|gemini|crypto\.com|zonda|bitbay|exchange|hot wallet|cold wallet|deposit/, 'CEX'],
+  [/tether|\busdt\b|\busdc\b|usd coin|dai stablecoin|\bbusd\b/, 'STABLECOIN'],
+  [/donation|charity|fundraising|ukraine/, 'CHARITY'],
+  [/phish|scam|\bhack(?:er|ed)?\b|exploit/, 'SCAM'],
+];
+
 export function categorizeExplorerTag(text: string): LabelCategory | null {
   const t = text.toLowerCase();
-  if (/tornado|mixer|blender|sinbad|wasabi|coinjoin/.test(t)) return 'MIXER';
-  if (/binance|coinbase|kraken|okx|bitfinex|kucoin|bybit|huobi|htx|gate\.io|bitstamp|gemini|crypto\.com|zonda|bitbay|exchange|hot wallet|cold wallet|deposit/.test(t)) return 'CEX';
-  if (/uniswap|sushiswap|1inch|0x protocol|curve|balancer|pancake|router|dex/.test(t)) return 'DEX';
-  if (/bridge|wormhole|stargate|hop protocol|across/.test(t)) return 'BRIDGE';
-  if (/tether|usdt|usdc|usd coin|dai stablecoin|busd/.test(t)) return 'STABLECOIN';
-  if (/donation|charity|fundraising|ukraine/.test(t)) return 'CHARITY';
-  if (/moonpay|\bramp\b|transak|banxa|wirex|\bcrypto card\b|\bcard\b|mercuryo|simplex/.test(t)) return 'OFFRAMP';
-  if (/phish|scam|hack|exploit/.test(t)) return 'SCAM';
-  return null;
+  return TAG_RULES.find(([re]) => re.test(t))?.[1] ?? null;
 }

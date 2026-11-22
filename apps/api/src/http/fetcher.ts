@@ -70,6 +70,35 @@ async function throttle(host: string) {
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
 }
 
+const MAX_REDIRECTS = 5;
+/** Limit odczytu odpowiedzi – bez niego pojedyncza ogromna strona trafiłaby w całości do pamięci. */
+const MAX_BODY_BYTES = 8_000_000;
+
+async function readCapped(res: Response, max: number): Promise<Uint8Array> {
+  if (!res.body) return new Uint8Array(await res.arrayBuffer());
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const room = max - size;
+    chunks.push(value.length > room ? value.subarray(0, room) : value);
+    size += Math.min(value.length, room);
+    if (size >= max) {
+      await reader.cancel().catch(() => {});
+      break;
+    }
+  }
+  const out = new Uint8Array(size);
+  let off = 0;
+  for (const c of chunks) {
+    out.set(c, off);
+    off += c.length;
+  }
+  return out;
+}
+
 export async function fetchText(
   url: string,
   opts: { log?: RequestLogEntry[]; headers?: Record<string, string>; useCache?: boolean; accept?: string } = {},
@@ -103,16 +132,32 @@ export async function fetchText(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), config.requestTimeoutMs);
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      redirect: 'follow',
-      headers: { 'User-Agent': config.userAgent, Accept: opts.accept ?? '*/*', ...opts.headers },
-    });
-    // Przekierowanie poza białą listę traktujemy jako zablokowane.
-    if (res.url && !isHostAllowed(res.url)) throw new FetchBlockedError(`Przekierowanie poza białą listę: ${res.url}`);
+    // Przekierowania obsługujemy ręcznie: każdy kolejny host jest sprawdzany na białej liście
+    // ZANIM zostanie wysłane do niego zapytanie (redirect: 'follow' najpierw łączyłby się z hostem,
+    // a dopiero potem pozwalał sprawdzić res.url – czyli dane wychodziłyby do niezatwierdzonej usługi).
+    let target = url;
+    let res: Response;
+    for (let hop = 0; ; hop++) {
+      res = await fetch(target, {
+        signal: ctrl.signal,
+        redirect: 'manual',
+        headers: { 'User-Agent': config.userAgent, Accept: opts.accept ?? '*/*', ...opts.headers },
+      });
+      const location = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
+      if (!location) break;
+      await res.body?.cancel().catch(() => {});
+      if (hop >= MAX_REDIRECTS) throw new Error(`Zbyt wiele przekierowań (>${MAX_REDIRECTS})`);
+      const next = new URL(location, target).toString();
+      if (!/^https?:$/.test(new URL(next).protocol) || !isHostAllowed(next)) {
+        opts.log?.push({ ts: now(), url: next, status: 'BLOCKED (przekierowanie spoza białej listy)', cache: false, ms: 0 });
+        throw new FetchBlockedError(`Przekierowanie poza białą listę: ${next}`);
+      }
+      opts.log?.push({ ts: now(), url: target, status: res.status, cache: false, ms: Date.now() - started });
+      target = next;
+    }
     const contentType = res.headers.get('content-type') ?? '';
     // Kodowanie z nagłówka (np. fora SMF wysyłają ISO-8859-1) – res.text() zawsze zakłada UTF-8.
-    const buf = await res.arrayBuffer();
+    const buf = await readCapped(res, MAX_BODY_BYTES);
     const charset = /charset=["']?([\w-]+)/i.exec(contentType)?.[1]?.toLowerCase();
     let decoded: string;
     try {

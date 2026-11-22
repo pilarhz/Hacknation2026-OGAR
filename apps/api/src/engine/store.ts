@@ -3,7 +3,7 @@ import { audit, db, iso, newId, now, toJsonb, type Row } from '../db/db.ts';
 import { config } from '../config.ts';
 import type { Identifier } from '../extract/identifiers.ts';
 import { refreshCustomLabels } from '../chain/labels.ts';
-import { DEFAULT_OPTIONS, runInvestigation, type InvestigationOptions, type RunResult } from './investigate.ts';
+import { DEFAULT_OPTIONS, runInvestigation, type InvestigationOptions, type RunResult, type StoredDocument } from './investigate.ts';
 
 export interface Investigation {
   id: string;
@@ -260,6 +260,50 @@ export async function getDocument(runId: string, docId: string) {
 
 const running = new Set<string>();
 
+/** Dokumenty przebiegu wstawiane paczkami (jedno zapytanie na paczkę zamiast jednego na dokument). */
+async function insertDocuments(runId: string, docs: StoredDocument[], chunk = 25): Promise<void> {
+  for (let i = 0; i < docs.length; i += chunk) {
+    const rows = docs.slice(i, i + chunk).map((d) => ({
+      id: `${runId}:${d.id}`,
+      source: d.source,
+      url: d.url,
+      title: d.title,
+      author: d.author ?? null,
+      published_at: d.publishedAt ?? null,
+      fetched_at: d.fetchedAt,
+      sha256: d.sha256,
+      content: d.content,
+    }));
+    await db().query(
+      `INSERT INTO documents (id, run_id, source, url, title, author, published_at, fetched_at, sha256, content)
+       SELECT x.id, $1, x.source, x.url, x.title, x.author, x.published_at, x.fetched_at::timestamptz, x.sha256, x.content
+       FROM jsonb_to_recordset($2::jsonb) AS x(id text, source text, url text, title text, author text, published_at text, fetched_at text, sha256 text, content text)`,
+      [runId, toJsonb(rows)],
+    );
+  }
+}
+
+/**
+ * Przebiegi, które zostały w stanie „running” po restarcie/awarii serwera, nigdy się nie zakończą
+ * (wykonywały się w pamięci procesu). Oznaczamy je jako błąd – inaczej wisiałyby jako trwające,
+ * a analityk nie mógłby ich unieważnić. Wywoływane raz przy starcie API.
+ * Uwaga: zakłada jedną instancję API na bazę (tryb demo/PGlite i obecne wdrożenie). Przy kilku
+ * instancjach należy to zastąpić kolejką zadań z dzierżawą (lease) – patrz „Docelowo w KAS” w README.
+ */
+export async function recoverInterruptedRuns(): Promise<number> {
+  const rows = await db().query<{ id: string }>(
+    `UPDATE runs SET status = 'error', finished_at = now(), error = $1 WHERE status = 'running' RETURNING id`,
+    ['Przebieg przerwany: serwer API został zatrzymany lub uruchomiony ponownie w trakcie analizy. Uruchom analizę ponownie.'],
+  );
+  if (rows.length) await audit('run.interrupted', { runIds: rows.map((r) => r.id) });
+  return rows.length;
+}
+
+/** Czy przebieg należy do danej analizy (ochrona przed operacją na przebiegu innej sprawy). */
+export async function runBelongsTo(runId: string, investigationId: string): Promise<boolean> {
+  return !!(await db().one('SELECT 1 FROM runs WHERE id = $1 AND investigation_id = $2', [runId, investigationId]));
+}
+
 /** Uruchamia przebieg w tle; zwraca id przebiegu natychmiast po zapisaniu go w bazie. */
 export async function startRun(investigationId: string, trigger: RunRow['trigger']): Promise<string> {
   const inv = await getInvestigation(investigationId);
@@ -281,11 +325,7 @@ export async function startRun(investigationId: string, trigger: RunRow['trigger
     try {
       await refreshCustomLabels(); // etykiety analityków aktualne na start przebiegu
       const { result, storedDocs } = await runInvestigation(inv.seeds, inv.options, (m) => progress.set(runId, m));
-      for (const d of storedDocs)
-        await db().query(
-          'INSERT INTO documents (id, run_id, source, url, title, author, published_at, fetched_at, sha256, content) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
-          [`${runId}:${d.id}`, runId, d.source, d.url, d.title, d.author ?? null, d.publishedAt ?? null, d.fetchedAt, d.sha256, d.content],
-        );
+      await insertDocuments(runId, storedDocs);
       await db().query('UPDATE runs SET status = $1, finished_at = $2, result = $3::jsonb WHERE id = $4', ['done', now(), toJsonb(result), runId]);
       await audit('run.done', { runId, stats: result.stats });
     } catch (e) {
@@ -307,6 +347,7 @@ export async function compareRuns(aId: string, bId: string) {
   const a = await getRunResult(aId);
   const b = await getRunResult(bId);
   if (!a || !b) throw new Error('Nie znaleziono przebiegu');
+  if (a.investigation.id !== b.investigation.id) throw new Error('Porównywać można tylko przebiegi tej samej analizy');
   const ka = new Map(a.result.addresses.map((x) => [x.key, x]));
   const kb = new Map(b.result.addresses.map((x) => [x.key, x]));
   const newAddresses = [...kb.values()].filter((x) => !ka.has(x.key)).map((x) => ({ key: x.key, chain: x.chain, address: x.address, score: x.score.score, band: x.score.bandLabel }));

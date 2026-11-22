@@ -181,3 +181,31 @@ test('Znak NUL w treści z internetu nie psuje zapisu (Postgres go nie akceptuje
   assert.equal(row!.body, 'ab');
   await db().query('INSERT INTO chain_cache (key, fetched_at, data) VALUES ($1, now(), $2::jsonb)', ['X:nul', toJsonb({ s: 'a\u0000b' })]);
 });
+
+test('Przebieg przerwany restartem serwera („running” w bazie) zostaje oznaczony jako błąd i da się go unieważnić', async () => {
+  const inv = await store.createInvestigation({ name: 'Restart', seeds: [{ kind: 'nick', value: 'x_restart' }], options: { sources: ['sandbox'] } });
+  await db().query("INSERT INTO runs (id, investigation_id, seq, trigger, status, started_at) VALUES ('orphan-run', $1, 1, 'manual', 'running', now())", [inv.id]);
+  assert.equal(await store.invalidateRun('orphan-run', 'technical'), 'running');
+  assert.equal(await store.recoverInterruptedRuns(), 1);
+  const [run] = await store.listRuns(inv.id);
+  assert.equal(run.status, 'error');
+  assert.match(run.error!, /przerwany/);
+  assert.equal(await store.invalidateRun('orphan-run', 'technical'), 'ok');
+  assert.equal(await store.recoverInterruptedRuns(), 0);
+});
+
+test('Porównanie i unieważnianie tylko w obrębie jednej analizy', async () => {
+  const a = await store.createInvestigation({ name: 'A', seeds: [{ kind: 'nick', value: 'nowak_btc' }], options: { sources: ['sandbox'] } });
+  const b = await store.createInvestigation({ name: 'B', seeds: [{ kind: 'nick', value: 'nowak_btc' }], options: { sources: ['sandbox'] } });
+  const ra = await store.startRun(a.id, 'manual');
+  const rb = await store.startRun(b.id, 'manual');
+  await waitDone(a.id);
+  await waitDone(b.id);
+  await assert.rejects(store.compareRuns(ra, rb), /tej samej analizy/);
+  assert.equal(await store.runBelongsTo(ra, a.id), true);
+  assert.equal(await store.runBelongsTo(ra, b.id), false);
+  // dokumenty zapisane paczkami – wszystkie, z poprawnym czasem pobrania
+  const r = (await store.getRunResult(ra))!;
+  const n = await db().one<{ n: number }>('SELECT COUNT(*)::int AS n FROM documents WHERE run_id = $1', [ra]);
+  assert.equal(n!.n, r.result.documents.length);
+});
