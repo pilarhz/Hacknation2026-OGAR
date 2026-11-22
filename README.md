@@ -24,6 +24,7 @@ Ktoś sprzedaje kryptowaluty na forum, ma portfel w profilu na GitHubie i podaje
 - [Uruchom i przetestuj w 5 minut](#uruchom-i-przetestuj-w-5-minut)
 - [Scenariusze testowe](#scenariusze-testowe)
 - [Przykładowy wynik](#przykładowy-wynik)
+- [Zrzuty ekranu](#zrzuty-ekranu)
 - [Jak to działa](#jak-to-działa)
 - [Wskaźnik Pewności](#wskaźnik-pewności)
 - [Odrzucanie fałszywych trafień](#odrzucanie-fałszywych-trafień)
@@ -166,6 +167,26 @@ wyliczenie bc1qpgfd4zxr…:
   MAX  −11  Limit wskaźnika: maksymalnie 99%
   = 99%
 ```
+
+---
+
+## Zrzuty ekranu
+
+**Podsumowanie analizy:** wniosek główny, kluczowe liczby i adresy powiązane z badanym.
+
+![Podsumowanie scenariusza 1](docs/screenshots/podsumowanie-scenariusza-1.png)
+
+**Szczegóły adresu:** fakty źródłowe z cytatem i wyliczenie Wskaźnika Pewności reguła po regule.
+
+![Szczegóły adresu](docs/screenshots/szczegoly-adresu.png)
+
+**Mapa powiązań:** od identyfikatora wejściowego przez pivot i dokumenty do adresów oraz usług (giełdy, kantory, mikser).
+
+![Mapa powiązań](docs/screenshots/mapa-powiazan.png)
+
+**Raport OSINT:** nagłówek sprawy, streszczenie i parametry wyszukiwania.
+
+![Raport OSINT](docs/screenshots/raport-osint.png)
 
 ---
 

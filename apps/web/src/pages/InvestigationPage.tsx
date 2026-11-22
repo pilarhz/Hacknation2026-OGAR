@@ -7,6 +7,9 @@ import { RelationMap } from '../components/RelationMap.tsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.tsx';
 import { InvalidReasonFields } from './NewPage.tsx';
 
+/** Polska odmiana po liczebniku (jak apps/api/src/plural.ts). */
+const plural = (n: number, one: string, few: string, many: string) => `${n} ${n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many}`;
+
 const LEVEL_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
 type Tab = 'summary' | 'addresses' | 'map' | 'timeline' | 'sources' | 'compare' | 'log';
@@ -408,11 +411,11 @@ function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (ke
             <div className="label">Wskaźnik Pewności · {BAND_SHORT[best.score.band]}</div>
             <p className="sentence">
               Adres <Chain chain={best.chain} />
-              <span className="mono nowrap" style={{ fontSize: 15 }} title={best.address}>{shortAddr(best.address)}</span> należy do badanego z pewnością{' '}
-              <b className={`t-${best.score.band}`}>{best.score.score}%</b>, potwierdzoną w {best.score.independentSites.length} niezależnych źródłach.
+              <span className="mono nowrap" style={{ fontSize: 15 }} title={best.address}>{shortAddr(best.address)}</span> jest powiązany z identyfikatorami badanego – Wskaźnik Pewności{' '}
+              <b className={`t-${best.score.band}`}>{best.score.score}%</b>, {best.score.independentSites.length === 1 ? 'ślad w 1 źródle' : `ślady w ${best.score.independentSites.length} niezależnych źródłach`}.
               {s.cashOutSignals > 0 ? (
                 <>
-                  {' '}Wykryto <b style={{ color: 'var(--danger)' }}>{s.cashOutSignals} sygnałów wyjścia do walut tradycyjnych</b>.
+                  {' '}Wykryto <b style={{ color: 'var(--danger)' }}>{plural(s.cashOutSignals, 'sygnał', 'sygnały', 'sygnałów')} wyjścia do walut tradycyjnych</b>.
                 </>
               ) : (
                 ' Nie wykryto sygnałów wyjścia do walut tradycyjnych.'
