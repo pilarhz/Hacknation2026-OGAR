@@ -67,32 +67,6 @@ Każdy scenariusz to **inna osoba, inny typ danych wejściowych i inna umiejętn
 
 ---
 
-## Przykładowy wynik
-
-Scenariusz 1, wynik prosto z silnika:
-
-```
-dokumenty: 7 · identyfikatory: 3 · adresy: 9 · przypisane: 4 · wykluczone: 2 · sygnały cash-out: 4
-
- 99%  BTC  bc1qpgfd4zxr…  BARDZO WYSOKIE           [cash-out: CEX_OUTFLOW]
- 70%  ETH  0xCfE541F7a2…  PRAWDOPODOBNY            [cash-out: CEX_OUTFLOW, OFFRAMP] [mikser]
- 65%  TRX  TXLFKvqCJRzY…  PRAWDOPODOBNY            [cash-out: OFFRAMP]
- 55%  ETH  0x7B431cddF8…  ŚREDNI (drugi ślad: powiązanie on-chain)
- 10%  ETH  0x18b30Ed558…  NISKI / SZUM
-  5%  ETH  0xeCd180Ba67…  BRAK PRZYPISANIA (opublikowała inna osoba)
-  0%  ETH  0x28C6c06298…  WYKLUCZONY: Binance 14 (hot wallet)
-  0%  ETH  0xdAC17F958D…  WYKLUCZONY: kontrakt USDT
-
-wyliczenie bc1qpgfd4zxr…:
-  R1   +90  oficjalny profil / strona badanego (K6)
-  R4    +5  konto zweryfikowane
-  R6   +15  synergia: adres w 4 niezależnych źródłach
-  MAX  −11  limit wskaźnika 99%
-  =     99
-```
-
----
-
 ## Zrzuty ekranu
 
 | Podsumowanie analizy | Szczegóły adresu i wyliczenie wyniku |
