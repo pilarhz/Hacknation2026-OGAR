@@ -18,6 +18,8 @@ const esc = (v: unknown) =>
 const dt = (iso?: string | null) => (iso ? `${new Date(iso).toLocaleString('pl-PL', { timeZone: 'UTC' })} UTC` : '—');
 const num = (n: number | null | undefined, max = 8) => (n === null || n === undefined ? '—' : n.toLocaleString('pl-PL', { maximumFractionDigits: max }));
 const link = (u: string) => (/^https?:/.test(u) ? `<a href="${esc(u)}">${esc(u)}</a>` : esc(u));
+/** Jedyny skrypt w raporcie – jego hash dopuszcza nagłówek CSP (server.ts). */
+export const REPORT_PRINT_HANDLER = 'window.print()';
 const LEVEL = { high: 'istotne', medium: 'średnie', low: 'informacyjne' } as const;
 
 function scoreColor(s: number, excluded: boolean) {
@@ -138,7 +140,7 @@ table{border-collapse:collapse;width:100%;margin:6px 0 10px;font-size:12px}td,th
 .fill{display:inline-block;min-width:240px;border-bottom:1px solid #9ca3af}
 @media print{a{color:#111;text-decoration:none}body{margin:0;max-width:none;padding:0}.noprint{display:none}.addr{break-inside:avoid-page}h2{break-after:avoid}}
 </style></head><body>
-<div class="noprint" style="text-align:right"><button onclick="window.print()">Drukuj / zapisz PDF</button></div>
+<div class="noprint" style="text-align:right"><button onclick="${REPORT_PRINT_HANDLER}">Drukuj / zapisz PDF</button></div>
 <h1>Raport OSINT – powiązania śladów cyfrowych z adresami kryptowalutowymi</h1>
 <table class="kv">
 <tr><th>Analiza</th><td>${esc(inv.name)}</td></tr>

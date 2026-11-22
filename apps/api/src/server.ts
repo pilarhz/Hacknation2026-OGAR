@@ -3,7 +3,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import { existsSync } from 'node:fs';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { config, REPO_ROOT } from './config.ts';
 import { audit, db, iso } from './db/db.ts';
@@ -13,7 +13,7 @@ import { CHAINS, extractAddresses, type Chain } from './extract/addresses.ts';
 import { CONTEXT_INFO } from './scoring/context.ts';
 import { BANDS, SCORING_PARAMS } from './scoring/confidence.ts';
 import { CATEGORY_LABELS, type LabelCategory } from './chain/types.ts';
-import { addCustomLabel, listLabels, refreshCustomLabels } from './chain/labels.ts';
+import { addCustomLabel, canonicalLabelAddress, listLabels, refreshCustomLabels } from './chain/labels.ts';
 import { DEFAULT_OPTIONS } from './engine/investigate.ts';
 import {
   approveHost,
@@ -29,8 +29,10 @@ import {
   listRuns,
   listTrash,
   purgeTrashed,
+  recoverInterruptedRuns,
   restoreInvestigation,
   revalidateRun,
+  runBelongsTo,
   startRun,
   startScheduler,
   trashInvestigation,
@@ -38,7 +40,7 @@ import {
   updateInvestigation,
   updateSchedule,
 } from './engine/store.ts';
-import { renderReport } from './report/report.ts';
+import { renderReport, REPORT_PRINT_HANDLER } from './report/report.ts';
 
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' }, bodyLimit: 1_000_000 });
 await app.register(cors, { origin: [/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/] });
@@ -74,6 +76,16 @@ app.post<{ Body: { token: string } }>('/api/login', { schema: { body: { type: 'o
   await audit('auth.login', {});
   return reply.header('Set-Cookie', `${COOKIE}=${encodeURIComponent(req.body.token)}; HttpOnly; SameSite=Strict; Path=/api`).send({ ok: true });
 });
+
+// Nagłówki bezpieczeństwa dla wszystkich odpowiedzi. Raport OSINT zawiera treści pobrane z internetu –
+// mimo escapowania dostaje osobno ścisłe CSP: bez skryptów (poza przyciskiem „Drukuj”), bez zasobów zewnętrznych.
+app.addHook('onSend', async (_req, reply) => {
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('Referrer-Policy', 'no-referrer');
+  reply.header('X-Frame-Options', 'DENY');
+});
+const PRINT_HANDLER_HASH = createHash('sha256').update(REPORT_PRINT_HANDLER).digest('base64');
+const REPORT_CSP = `default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'unsafe-hashes' 'sha256-${PRINT_HANDLER_HASH}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
 
 const KINDS = Object.keys(IDENTIFIER_LABELS) as IdentifierKind[];
 
@@ -194,7 +206,10 @@ app.put<{
   async (req, reply) => {
     const inv = await updateInvestigation(req.params.id, req.body as Parameters<typeof updateInvestigation>[1]);
     if (!inv) return reply.code(404).send({ error: 'Nie znaleziono' });
-    if (req.body.invalidateRunId) await invalidateRun(req.body.invalidateRunId, req.body.invalidReason ?? 'wrong-identifier', req.body.invalidNote);
+    if (req.body.invalidateRunId) {
+      if (!(await runBelongsTo(req.body.invalidateRunId, inv.id))) return reply.code(400).send({ error: 'Wskazany przebieg nie należy do tej analizy' });
+      await invalidateRun(req.body.invalidateRunId, req.body.invalidReason ?? 'wrong-identifier', req.body.invalidNote);
+    }
     let runId: string | null = null;
     if (req.body.rerun) {
       try {
@@ -263,7 +278,7 @@ app.get<{ Params: { id: string } }>('/api/runs/:id/report.html', async (req, rep
   const r = await getRunResult(req.params.id);
   if (!r) return reply.code(404).send('Brak przebiegu');
   await audit('report.view', { runId: req.params.id });
-  return reply.type('text/html; charset=utf-8').send(renderReport(r.investigation, r.run, r.result));
+  return reply.type('text/html; charset=utf-8').header('Content-Security-Policy', REPORT_CSP).send(renderReport(r.investigation, r.run, r.result));
 });
 
 app.get<{ Params: { id: string } }>('/api/runs/:id/export.json', async (req, reply) => {
@@ -296,22 +311,30 @@ app.get<{ Params: { id: string; docId: string } }>('/api/runs/:id/documents/:doc
   return d;
 });
 
-app.get<{ Querystring: { a: string; b: string } }>('/api/compare', async (req, reply) => {
+app.get<{ Querystring: { a: string; b: string } }>(
+  '/api/compare',
+  { schema: { querystring: { type: 'object', required: ['a', 'b'], properties: { a: { type: 'string', maxLength: 100 }, b: { type: 'string', maxLength: 100 } } } } },
+  async (req, reply) => {
   try {
     return await compareRuns(req.query.a, req.query.b);
   } catch (e) {
     return reply.code(400).send({ error: e instanceof Error ? e.message : String(e) });
   }
-});
+  },
+);
 
 app.get('/api/labels', async () => await listLabels());
 app.post<{ Body: { chain: Chain; address: string; name: string; category: LabelCategory; note?: string } }>(
   '/api/labels',
   { schema: { body: { type: 'object', required: ['chain', 'address', 'name', 'category'], properties: { chain: { enum: [...CHAINS] }, address: { type: 'string', maxLength: 120 }, name: { type: 'string', maxLength: 200 }, category: { enum: Object.keys(CATEGORY_LABELS) }, note: { type: 'string', maxLength: 500 } } } } },
-  async (req) => {
-    await addCustomLabel(req.body.chain, req.body.address.trim(), req.body.name, req.body.category, req.body.note);
-    await audit('label.add', req.body);
-    return { ok: true };
+  async (req, reply) => {
+    // Adres w postaci kanonicznej (bech32 małymi literami, EVM z sumą EIP-55) – inaczej etykieta
+    // zapisana np. jako "BC1Q…" nie pasowałaby do adresu wykrytego w tekście i wykluczenie E1 by nie zadziałało.
+    const c = canonicalLabelAddress(req.body.chain, req.body.address);
+    if ('error' in c) return reply.code(400).send({ error: c.error });
+    await addCustomLabel(req.body.chain, c.address, req.body.name, req.body.category, req.body.note);
+    await audit('label.add', { ...req.body, address: c.address });
+    return { ok: true, address: c.address };
   },
 );
 
@@ -333,6 +356,8 @@ if (existsSync(webDist)) {
 
 // Baza (schemat) i etykiety analityków muszą być gotowe przed przyjęciem pierwszego żądania.
 await refreshCustomLabels();
+const interrupted = await recoverInterruptedRuns();
+if (interrupted) app.log.warn(`Oznaczono ${interrupted} przerwanych przebiegów (stan „running” sprzed restartu) jako błąd.`);
 app.log.info(`Baza danych: ${db().kind === 'postgres' ? 'PostgreSQL (DATABASE_URL)' : `PostgreSQL wbudowany (PGlite, ${config.dbPath})`}`);
 startScheduler();
 await app.listen({ port: config.port, host: config.host });

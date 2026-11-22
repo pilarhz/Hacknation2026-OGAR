@@ -70,7 +70,7 @@ Wszystkie zmienne (porty, źródła, biała lista hostów, token API, dostawcy b
 ### Testy
 
 ```bash
-npm test            # 41 testów
+npm test            # 52 testy
 npm run typecheck   # kontrola typów API i interfejsu
 npm run build       # build frontendu
 ```
