@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, INVESTIGATIONS_CHANGED, type InvestigationListItem, type Meta } from './api.ts';
 import { useTheme } from './theme.ts';
+import { ListPage } from './pages/ListPage.tsx';
+import { NewPage } from './pages/NewPage.tsx';
+import { InvestigationPage } from './pages/InvestigationPage.tsx';
+import { ExtractorPage } from './pages/ExtractorPage.tsx';
+import { LabelsPage } from './pages/LabelsPage.tsx';
+import { MethodPage } from './pages/MethodPage.tsx';
+import { AboutPage } from './pages/AboutPage.tsx';
+import { TrashPage } from './pages/TrashPage.tsx';
 
 function Login({ onDone }: { onDone: () => void }) {
   const [token, setToken] = useState('');
@@ -28,16 +36,8 @@ function Login({ onDone }: { onDone: () => void }) {
     </div>
   );
 }
-import { ListPage } from './pages/ListPage.tsx';
-import { NewPage } from './pages/NewPage.tsx';
-import { InvestigationPage } from './pages/InvestigationPage.tsx';
-import { ExtractorPage } from './pages/ExtractorPage.tsx';
-import { LabelsPage } from './pages/LabelsPage.tsx';
-import { MethodPage } from './pages/MethodPage.tsx';
-import { AboutPage } from './pages/AboutPage.tsx';
-import { TrashPage } from './pages/TrashPage.tsx';
 
-export function useHash() {
+function useHash() {
   const [hash, setHash] = useState(() => window.location.hash.slice(1) || '/');
   useEffect(() => {
     const on = () => setHash(window.location.hash.slice(1) || '/');
@@ -93,7 +93,7 @@ export function App() {
   );
   return (
     <div className="shell">
-      {/* Górny pasek „Sztab": znak OGAR jest zawsze widoczny (pasek przyklejony do góry ekranu). */}
+      {/* przyklejony górny pasek – znak OGAR zawsze widoczny */}
       <header className="topbar">
         <a className="brand" href="#/" aria-label="OGAR – lista analiz">
           <img className="brand-logo" src="/ogar.svg" alt="" aria-hidden />
@@ -192,12 +192,11 @@ function RecentCases({ current }: { current?: string }) {
 const SUN = 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4';
 const MOON = 'M21 13A9 9 0 1111 3a7 7 0 0010 10z';
 
-// Tło menu bocznego: „sieć powiązań" (węzły i krawędzie), zanikająca od dołu do góry (maska w CSS).
-// Układ jest deterministyczny (stałe ziarno), więc wzór wygląda tak samo przy każdym odświeżeniu.
+// Tło menu: „sieć powiązań” zanikająca ku górze (maska w CSS); stałe ziarno = ten sam wzór przy każdym odświeżeniu.
 const NET = (() => {
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const pts = Array.from({ length: 26 }, () => ({ x: 14 + rnd() * 204, y: 412 - Math.pow(rnd(), 1.5) * 400 }));
+  const pts = Array.from({ length: 46 }, () => ({ x: 12 + rnd() * 208, y: 552 - Math.pow(rnd(), 1.4) * 540 }));
   const seen = new Set<string>();
   const edges: [number, number][] = [];
   pts.forEach((p, i) => {
@@ -214,13 +213,13 @@ const NET = (() => {
         }
       });
   });
-  return { pts, edges, hot: new Set([3, 11, 19]) };
+  return { pts, edges, hot: new Set([3, 11, 19, 31]) };
 })();
 
 function SidenavPattern() {
   return (
     <div className="sidenav-pattern" aria-hidden>
-      <svg viewBox="0 0 232 420" preserveAspectRatio="xMidYMax slice">
+      <svg viewBox="0 0 232 560" preserveAspectRatio="xMidYMax slice">
         {NET.edges.map(([i, j]) => (
           <line key={`${i}-${j}`} x1={NET.pts[i].x} y1={NET.pts[i].y} x2={NET.pts[j].x} y2={NET.pts[j].y} />
         ))}

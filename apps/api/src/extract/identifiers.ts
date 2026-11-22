@@ -19,11 +19,9 @@ export const IDENTIFIER_LABELS: Record<IdentifierKind, string> = {
 };
 
 const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
-// Telegram: tylko jednoznaczne formy – link t.me/… albo "Telegram: @nick" (z @). Samo słowo po
-// "telegram" (np. "Telegram support") NIE jest identyfikatorem.
+// Telegram: tylko t.me/… albo "Telegram: @nick" – samo słowo po "telegram" nie jest identyfikatorem.
 const TELEGRAM = /(?:\bt\.me\/(?:s\/)?|\btelegram\.me\/)(?!joinchat\b|addstickers\b|share\b|proxy\b)([A-Za-z][A-Za-z0-9_]{4,31})\b|\b(?:telegram|tg)\s*[:\-–]?\s*@([A-Za-z][A-Za-z0-9_]{4,31})\b/gi;
-// Telefon: wyłącznie z jawnym prefiksem (+48 lub słowo "tel/telefon/kom/whatsapp/sms") – inaczej
-// każda 9-cyfrowa liczba (kwota w satoshi, nr zamówienia, fragment adresu) byłaby "telefonem".
+// Telefon: tylko z prefiksem (+48, tel, kom, whatsapp, sms) – inaczej każda 9-cyfrowa liczba byłaby telefonem.
 const PHONE = /(?<![\p{L}\p{N}])(?:\+48[\s-]?|(?:tel(?:efon)?|phone|kom(?:órka)?|whatsapp|sms)\.?\s*[:\-–]?\s*(?:\+48[\s-]?)?)(\d{3}[\s-]?\d{3}[\s-]?\d{3})(?![\p{L}\p{N}])/giu;
 const SOCIAL = /https?:\/\/(?:www\.)?(?:github\.com|x\.com|twitter\.com|reddit\.com\/(?:u|user)|instagram\.com|facebook\.com|tiktok\.com\/@|keybase\.io|news\.ycombinator\.com\/user\?id=)[^\s"'<>)]+/gi;
 
@@ -39,6 +37,13 @@ export function extractIdentifiers(text: string): Identifier[] {
   for (const m of text.matchAll(SOCIAL)) add('social', m[0]);
   for (const m of text.matchAll(PHONE)) add('phone', `+48${m[1].replace(/\D/g, '')}`);
   return [...out.values()];
+}
+
+const SOCIAL_HANDLE = /(?:github\.com|x\.com|twitter\.com|reddit\.com\/(?:u|user)|instagram\.com|tiktok\.com\/@|keybase\.io)\/@?([A-Za-z0-9_.-]{2,40})/i;
+
+/** Nick z adresu URL profilu społecznościowego (null, gdy URL nie jest profilem). */
+export function handleFromSocial(url: string): string | null {
+  return (url.match(SOCIAL_HANDLE) ?? url.match(/news\.ycombinator\.com\/user\?id=([A-Za-z0-9_-]+)/i))?.[1] ?? null;
 }
 
 /** Normalizacja nicka do porównań (wielkość liter, separatory, sufiksy liczbowe zostają). */

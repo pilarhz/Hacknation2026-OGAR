@@ -2,9 +2,8 @@ import { useMemo, useState } from 'react';
 import type { Meta, RunResult } from '../api.ts';
 import { BAND_SHORT } from './Score.tsx';
 
-// Mapa powiązań (koncepcja „B"): graf z wyniku przebiegu (r.graph) rozłożony w kolumny
-// Wejście → Pivot → Źródła → Adresy · wynik → Usługi.
-// Najechanie na węzeł pokazuje jego powiązania, kliknięcie je przypina. Przyciski +/− zmieniają powiększenie.
+// Mapa powiązań: graf przebiegu w kolumnach Wejście → Pivot → Źródła → Adresy → Usługi.
+// Najechanie pokazuje powiązania węzła, kliknięcie je przypina.
 
 type GNode = RunResult['graph']['nodes'][number];
 type GEdge = RunResult['graph']['edges'][number];
@@ -78,9 +77,10 @@ export function RelationMap({ r, meta, onOpenAddress }: { r: RunResult; meta: Me
     // kolejność w kolumnie: średnia pozycja sąsiadów z kolumn po lewej (mniej przecięć krawędzi)
     const pos = new Map<string, number>();
     const nbrs = new Map<string, string[]>();
+    const link = (a: string, b: string) => (nbrs.get(a) ?? nbrs.set(a, []).get(a)!).push(b);
     for (const e of edges) {
-      nbrs.set(e.source, [...(nbrs.get(e.source) ?? []), e.target]);
-      nbrs.set(e.target, [...(nbrs.get(e.target) ?? []), e.source]);
+      link(e.source, e.target);
+      link(e.target, e.source);
     }
     used.forEach((ci, k) => {
       const col = cols[ci];

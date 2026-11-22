@@ -1,7 +1,5 @@
-/* OGAR – system wizualny „Sztab"
-   Stały górny pasek ze znakiem OGAR, menu boczne, gęste dane w jednym pasku wskaźników.
-   Kolory ze znaku: granat (dane, zaznaczenia) i czerwień (akcja główna, aktywna zakładka, alerty).
-   Wszystkie kolory są tokenami; motyw ustawia atrybut data-theme na <html> (light | dark). */
+/* OGAR – system „Sztab”: granat (dane, zaznaczenia) i czerwień (akcja główna, alerty) ze znaku.
+   Kolory to tokeny; motyw wybiera atrybut data-theme na <html> (light | dark). */
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
@@ -136,8 +134,7 @@
   -webkit-font-smoothing: antialiased;
 }
 * { box-sizing: border-box; }
-/* Miejsce na pasek przewijania jest zawsze zarezerwowane – inaczej treść „skacze" o kilka pikseli
-   przy przejściu między krótką stroną (bez paska) a długą (z paskiem). */
+/* stałe miejsce na pasek przewijania – treść nie „skacze” między krótką a długą stroną */
 html { overflow-y: scroll; scrollbar-gutter: stable; }
 body { margin: 0; font-size: 15px; line-height: 1.55; background: var(--bg); color: var(--ink); }
 a { color: var(--primary-2); text-underline-offset: 3px; }
@@ -196,7 +193,7 @@ button.cta-back { height: 42px; padding: 0 20px; gap: 8px; font-weight: 700; tex
 .recent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .recent-score { font-family: var(--font-mono); font-size: 12px; color: var(--muted); flex: none; }
 /* tło menu: sieć powiązań zanikająca ku górze */
-.sidenav-pattern { position: absolute; left: 0; right: 0; bottom: 0; height: min(420px, 60%); pointer-events: none; z-index: 0; color: var(--side-pattern); -webkit-mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, .6) 40%, transparent 100%); mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, .6) 40%, transparent 100%); }
+.sidenav-pattern { position: absolute; left: 0; right: 0; bottom: 0; height: min(560px, 75%); pointer-events: none; z-index: 0; color: var(--side-pattern); -webkit-mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, .65) 50%, transparent 100%); mask-image: linear-gradient(to top, #000 0%, rgba(0, 0, 0, .65) 50%, transparent 100%); }
 .sidenav-pattern svg { display: block; width: 100%; height: 100%; }
 .sidenav-pattern line { stroke: currentColor; stroke-width: 1; }
 .sidenav-pattern circle { fill: var(--bg); stroke: var(--side-pattern-node); stroke-width: 1.5; }
@@ -209,6 +206,8 @@ button.cta-back { height: 42px; padding: 0 20px; gap: 8px; font-weight: 700; tex
 /* „O programie": wyśrodkowany; gdy aktywny – ta sama czerwona kreska co w menu, ale z obu stron */
 .side-about a { justify-content: center; }
 .side-about a.active { box-shadow: inset 2px 0 0 var(--brand), inset -2px 0 0 var(--brand); }
+/* tło po najechaniu / po kliknięciu: półprzezroczyste z rozmyciem – prześwituje przez nie sieć powiązań */
+.side-about a:hover, .side-about a.active { background: color-mix(in srgb, var(--panel) 18%, transparent); -webkit-backdrop-filter: blur(2.5px); backdrop-filter: blur(2.5px); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lo); flex: none; display: inline-block; }
 .dot.on { background: var(--ok); }
 /* świecąca kropka statusu w menu bocznym (on-chain, AI) – delikatna poświata */
@@ -240,12 +239,10 @@ button.cta-back { height: 42px; padding: 0 20px; gap: 8px; font-weight: 700; tex
 .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
 .panel-head h3 { margin: 0; font-size: 15px; }
 .panel-head .muted { font-size: 12.5px; }
-.panel-body { padding: 16px 20px; }
 .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; margin: 0 0 10px; }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .row.between { justify-content: space-between; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.stack { display: flex; flex-direction: column; gap: 16px; }
 .muted { color: var(--muted); }
 .small { font-size: 12.5px; }
 .table-wrap { overflow-x: auto; }

@@ -1,12 +1,7 @@
-// Model tożsamości: konta (serwis + nick autora) łączone w grupy na podstawie twardych powiązań.
-//
-// Problem: ten sam nick w dwóch serwisach NIE oznacza tej samej osoby. Dlatego konto uznajemy za
-// potwierdzone konto badanego tylko wtedy, gdy jest połączone z innymi kontami badanego:
-//  - jawnym odnośnikiem (profil linkuje stronę WWW, kanał t.me, inny profil; dowód Keybase),
-//  - wspólnym unikalnym kontaktem (ten sam e-mail, Telegram, telefon),
-//  - albo jest zakotwiczone w danych wejściowych (podany e-mail/URL profilu, autor publikacji adresu wejściowego).
-// Konto powiązane z badanym WYŁĄCZNIE zgodnością nicku dostaje karę R9 w Wskaźniku Pewności.
-import { extractIdentifiers, normalizeHandle, type Identifier } from '../extract/identifiers.ts';
+// Tożsamość: konta (serwis + nick) łączone w grupy wyłącznie twardymi powiązaniami – jawnym odnośnikiem,
+// wspólnym kontaktem (e-mail, Telegram, telefon) albo kotwicą w danych wejściowych.
+// Ten sam nick w dwóch serwisach to nie dowód; konto łączone tylko nickiem dostaje karę R9.
+import { extractIdentifiers, handleFromSocial, normalizeHandle, type Identifier } from '../extract/identifiers.ts';
 
 export interface AccountSource {
   site: string;
@@ -52,8 +47,6 @@ function normUrl(u: string): string {
   }
 }
 
-const SOCIAL_HANDLE = /(?:github\.com|x\.com|twitter\.com|reddit\.com\/(?:u|user)|instagram\.com|tiktok\.com\/@|keybase\.io)\/@?([A-Za-z0-9_.-]{2,40})/i;
-
 export function identifierTokens(i: Identifier, siteOf: (url: string) => string): string[] {
   const v = i.value.trim();
   switch (i.kind) {
@@ -66,7 +59,7 @@ export function identifierTokens(i: Identifier, siteOf: (url: string) => string)
     case 'url':
       return [`url:${normUrl(v)}`, `site:${siteOf(v)}`];
     case 'social': {
-      const h = v.match(SOCIAL_HANDLE)?.[1];
+      const h = handleFromSocial(v);
       return [`url:${normUrl(v)}`, ...(h ? [`handle:${normalizeHandle(h)}@${siteOf(v)}`] : [])];
     }
     default:

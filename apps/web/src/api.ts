@@ -1,8 +1,8 @@
-// Klient REST API. Typy współdzielone z backendem (import wyłącznie typów – brak kodu serwera w bundlu).
+// Klient REST API. Typy z backendu (import tylko typów – kod serwera nie trafia do bundla).
 import type { RunResult, AddressResult, InvestigationOptions } from '../../api/src/engine/investigate.ts';
-import type { Investigation, RunRow } from '../../api/src/engine/store.ts';
+import type { Investigation, RunRow, TrashItem } from '../../api/src/engine/store.ts';
 
-export type { RunResult, AddressResult, InvestigationOptions, Investigation, RunRow };
+export type { RunResult, AddressResult, InvestigationOptions, Investigation, RunRow, TrashItem };
 
 export interface Meta {
   sources: { id: string; label: string; description: string; accepts: string[]; hosts: string[]; synthetic: boolean; available: boolean; note: string | null }[];
@@ -26,9 +26,7 @@ export class ApiError extends Error {
 }
 
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
-  // Token (jeśli serwer go wymaga) jest w ciasteczku HttpOnly ustawianym przez /api/login.
-  // Content-Type tylko gdy jest treść: Fastify odrzuca (400) żądanie z nagłówkiem JSON i pustym body,
-  // przez co np. DELETE /api/investigations/:id kończył się błędem.
+  // Token jest w ciasteczku HttpOnly (/api/login). Content-Type tylko z treścią – Fastify odrzuca JSON z pustym body.
   const headers = { ...(init?.body != null ? { 'Content-Type': 'application/json' } : {}), ...(init?.headers ?? {}) };
   const res = await fetch(url, { credentials: 'same-origin', ...init, headers });
   const body = await res.json().catch(() => ({}));
@@ -36,17 +34,7 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export interface TrashItem {
-  id: string;
-  name: string;
-  caseRef: string | null;
-  deletedAt: string;
-  purgeAt: string;
-  runCount: number;
-}
-
-// Sygnał „lista analiz się zmieniła" (usunięcie, przywrócenie, nowa analiza): menu boczne i lista
-// odświeżają się od razu, zamiast czekać na kolejne odpytanie serwera.
+// Sygnał „lista analiz się zmieniła” – menu boczne i lista odświeżają się od razu, bez czekania na odpytanie.
 export const INVESTIGATIONS_CHANGED = 'ogar:investigations-changed';
 export const notifyInvestigationsChanged = () => window.dispatchEvent(new Event(INVESTIGATIONS_CHANGED));
 const changed = async <T,>(p: Promise<T>) => {
@@ -76,7 +64,6 @@ export const api = {
   extract: (text: string) => req<ExtractResult>('/api/extract', { method: 'POST', body: JSON.stringify({ text }) }),
   labels: () => req<{ custom: LabelRow[]; seed: LabelRow[] }>('/api/labels'),
   addLabel: (body: { chain: string; address: string; name: string; category: string; note?: string }) => req('/api/labels', { method: 'POST', body: JSON.stringify(body) }),
-  audit: () => req<{ id: number; ts: string; action: string; detail_json: string }[]>('/api/audit'),
 };
 
 export interface LabelRow {

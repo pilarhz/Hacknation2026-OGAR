@@ -1,13 +1,9 @@
-// Silnik analizy OSINT:
-//  1) przeszukiwanie źródeł Web2 dla identyfikatorów wejściowych (BFS z pivotowaniem),
-//  2) ekstrakcja i walidacja adresów krypto w treściach,
-//  3) przypisanie autorstwa (czy adres opublikował badany),
-//  4) wzbogacenie danymi on-chain + wskaźniki (cash-out, miksery, powiązania),
-//  5) Wskaźnik Pewności, graf powiązań, chronologia przepływów i wnioski do weryfikacji.
+// Silnik analizy: BFS po źródłach Web2 z pivotem → ekstrakcja adresów → przypisanie autorstwa →
+// dane on-chain i wskaźniki → Wskaźnik Pewności, graf, chronologia i wnioski do weryfikacji.
 import { config } from '../config.ts';
 import { sha256Hex } from '../extract/encoding.ts';
-import { extractAddresses, type AddressMatch, type Chain } from '../extract/addresses.ts';
-import { extractIdentifiers, handleMatch, IDENTIFIER_LABELS, type Identifier, type IdentifierKind } from '../extract/identifiers.ts';
+import { addressKey, extractAddresses, type AddressMatch, type Chain } from '../extract/addresses.ts';
+import { extractIdentifiers, handleFromSocial, handleMatch, IDENTIFIER_LABELS, type Identifier, type IdentifierKind } from '../extract/identifiers.ts';
 import { withRunScope, type RequestLogEntry } from '../http/fetcher.ts';
 import { accountKey, buildIdentity, type IdentityComponent } from './identity.ts';
 import { getSources } from '../sources/registry.ts';
@@ -173,7 +169,6 @@ const SITE_ALIASES: Record<string, string> = {
   'gist.githubusercontent.com': 'github.com',
   'old.reddit.com': 'reddit.com',
   'twitter.com': 'x.com',
-  'news.ycombinator.com': 'news.ycombinator.com',
 };
 
 export function siteOf(url: string, archiveOf?: string): string {
@@ -191,19 +186,11 @@ export function siteOf(url: string, archiveOf?: string): string {
   }
 }
 
-function handleFromSocial(url: string): string | null {
-  const m = url.match(/(?:github\.com|x\.com|twitter\.com|reddit\.com\/(?:u|user)|instagram\.com|tiktok\.com\/@|keybase\.io)\/@?([A-Za-z0-9_.-]{2,40})/i) ?? url.match(/news\.ycombinator\.com\/user\?id=([A-Za-z0-9_-]+)/i);
-  return m ? m[1] : null;
-}
-
 const idKey = (i: Identifier) => `${i.kind}:${i.value.toLowerCase().replace(/\/$/, '')}`;
 
 type RunOutput = { result: RunResult; storedDocs: StoredDocument[] };
 
-/**
- * Każdy przebieg ma własny zakres sieciowy: zatwierdzone hosty i "świeżość" cache
- * (dane z cache tylko, jeśli pobrano je w trakcie tego przebiegu) – patrz http/fetcher.ts.
- */
+/** Każdy przebieg ma własny zakres sieciowy: zatwierdzone hosty i cache tylko z tego przebiegu (http/fetcher.ts). */
 export function runInvestigation(seedsIn: Identifier[], optionsIn: Partial<InvestigationOptions> = {}, onProgress?: (msg: string) => void): Promise<RunOutput> {
   const options: InvestigationOptions = { ...DEFAULT_OPTIONS, ...optionsIn };
   const startedAt = new Date().toISOString();
@@ -361,28 +348,32 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
   }
   const mentions: Mention[] = [];
   const rejected: RunResult['rejected'] = [];
+  const docKeys = new Map<RawDoc, Set<string>>(); // klucze adresów w każdym dokumencie
   for (const rd of raw) {
     const segs: Segment[] = rd.doc.segments?.length ? rd.doc.segments : [{ author: rd.doc.author, text: rd.doc.content, kind: rd.doc.kind }];
-    const seenInDoc = new Set<string>();
-    for (const seg of segs) {
+    const keys = new Set<string>();
+    segs.forEach((seg) => {
       const ex = extractAddresses(seg.text);
+      const inSeg = new Set<string>();
       for (const m of ex.matches) {
-        const k = `${m.key}|${segs.indexOf(seg)}`;
-        if (seenInDoc.has(k)) continue;
-        seenInDoc.add(k);
+        if (inSeg.has(m.key)) continue;
+        inSeg.add(m.key);
+        keys.add(m.key);
         mentions.push({ match: m, rd, seg, structured: false });
       }
       for (const rj of ex.rejected) rejected.push({ ...rj, docId: rd.rec.id, url: rd.rec.url });
-    }
+    });
     for (const sa of rd.doc.structuredAddresses ?? []) {
       const m = extractAddresses(sa.address).matches[0];
       if (!m) {
         rejected.push({ candidate: sa.address, reason: 'Adres z pola strukturalnego nie przeszedł walidacji', docId: rd.rec.id, url: rd.rec.url });
         continue;
       }
+      keys.add(m.key);
       mentions.push({ match: { ...m, context: `Pole profilu: ${sa.label ?? ''} ${sa.address}` }, rd, seg: { author: rd.doc.author, text: sa.address, kind: rd.doc.kind }, structured: true });
     }
-    rd.rec.addressCount = new Set(mentions.filter((x) => x.rd === rd).map((x) => x.match.key)).size;
+    rd.rec.addressCount = keys.size;
+    docKeys.set(rd, keys);
   }
 
   // Adresy obecne w aktualnych wersjach stron (do oznaczenia adresów tylko-archiwalnych).
@@ -504,7 +495,7 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
   }
   const strong = new Set(results.filter((r) => !r.score.excluded && r.score.score >= 60).map((r) => r.key));
   for (const r of results) {
-    const linkedToStrong = !!r.onchain?.txs.some((t) => t.counterparty && strong.has(`${r.chain}:${r.chain === 'ETH' ? t.counterparty.toLowerCase() : t.counterparty}`));
+    const linkedToStrong = !!r.onchain?.txs.some((t) => t.counterparty && strong.has(addressKey(r.chain, t.counterparty)));
     r.score = scoreAddress({ evidence: r.evidence, label: r.label, isContract: r.onchain?.isContract ?? null, indicators: r.indicators, linkedToStrongAddress: linkedToStrong });
   }
   results.sort((a, b) => b.score.score - a.score.score);
@@ -514,7 +505,7 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
   const byOrigin = new Map<string, { at?: string; keys: Set<string>; chainOf: Map<string, string> }[]>();
   for (const rd of raw) {
     const origin = rd.doc.archiveOf ?? rd.doc.url;
-    const keys = new Set(mentions.filter((m) => m.rd === rd && m.match.chain !== undefined).map((m) => m.match.key));
+    const keys = docKeys.get(rd)!;
     if (!keys.size) continue;
     const chainOf = new Map([...keys].map((k) => [k, k.split(':')[0]]));
     (byOrigin.get(origin) ?? byOrigin.set(origin, []).get(origin)!).push({ at: rd.doc.kind === 'archive' ? rd.doc.publishedAt : rd.doc.fetchedAt, keys, chainOf });
@@ -548,10 +539,18 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
   const nodeIds = new Set<string>();
+  const edgeIds = new Set<string>();
   const addNode = (n: GraphNode) => {
     if (!nodeIds.has(n.id)) {
       nodeIds.add(n.id);
       nodes.push(n);
+    }
+  };
+  const addEdgeOnce = (e: GraphEdge) => {
+    const k = `${e.type}|${e.source}|${e.target}`;
+    if (!edgeIds.has(k)) {
+      edgeIds.add(k);
+      edges.push(e);
     }
   };
   for (const i of identifiers) addNode({ id: `id:${idKey(i)}`, type: 'identifier', label: i.value, meta: { kind: i.kind, depth: i.depth, origin: i.origin } });
@@ -566,14 +565,14 @@ async function runInScope(seedsIn: Identifier[], options: InvestigationOptions, 
     for (const e of r.evidence) if (nodeIds.has(`doc:${e.docId}`)) edges.push({ source: `doc:${e.docId}`, target: `addr:${r.key}`, type: e.attribution === 'subject' ? 'mentions' : 'mentions-other' });
     for (const t of r.onchain?.txs ?? []) {
       if (!t.counterparty) continue;
-      const ck = `${r.chain}:${r.chain === 'ETH' ? t.counterparty.toLowerCase() : t.counterparty}`;
+      const ck = addressKey(r.chain, t.counterparty);
       if (groups.has(ck) && ck !== r.key) {
-        const a = [r.key, ck].sort();
-        if (!edges.some((e) => e.type === 'onchain' && e.source === `addr:${a[0]}` && e.target === `addr:${a[1]}`)) edges.push({ source: `addr:${a[0]}`, target: `addr:${a[1]}`, type: 'onchain', label: 'on-chain' });
+        const [a, b] = [r.key, ck].sort();
+        addEdgeOnce({ source: `addr:${a}`, target: `addr:${b}`, type: 'onchain', label: 'on-chain' });
       } else if (t.counterpartyLabel) {
         const sid = `svc:${t.counterpartyLabel.name}`;
         addNode({ id: sid, type: 'service', label: t.counterpartyLabel.name, meta: { category: t.counterpartyLabel.category } });
-        if (!edges.some((e) => e.source === `addr:${r.key}` && e.target === sid)) edges.push({ source: `addr:${r.key}`, target: sid, type: 'service', label: CATEGORY_LABELS[t.counterpartyLabel.category] });
+        addEdgeOnce({ source: `addr:${r.key}`, target: sid, type: 'service', label: CATEGORY_LABELS[t.counterpartyLabel.category] });
       }
     }
   }

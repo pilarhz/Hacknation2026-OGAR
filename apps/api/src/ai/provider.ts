@@ -1,14 +1,8 @@
-// Wymienny dostawca AI (domyślnie WYŁĄCZONY). Interfejs zgodny z OpenAI Chat Completions,
-// więc działa z lokalną Ollamą, vLLM, LM Studio lub dowolnym serwerem zgodnym z /v1 –
-// zmiana modelu = zmiana zmiennych AI_BASE_URL / AI_MODEL, bez zmian w kodzie.
-//
-// Rola AI jest wyłącznie pomocnicza: proponuje kategorię kontekstu dla przypadków, w których
-// reguły dały wynik domyślny. Propozycja jest pokazywana analitykowi obok reguły,
-// ale NIE zmienia Wskaźnika Pewności (wynik pozostaje odtwarzalny i wyjaśnialny).
+// Opcjonalny dostawca AI (domyślnie wyłączony), zgodny z OpenAI /v1 (Ollama, vLLM, LM Studio).
+// Tylko podpowiada kategorię kontekstu przy regule domyślnej – NIE zmienia Wskaźnika Pewności.
 import { config } from '../config.ts';
-import { isHostAllowed } from '../http/fetcher.ts';
-import type { RequestLogEntry } from '../http/fetcher.ts';
-import type { ContextCategory } from '../scoring/context.ts';
+import { isHostAllowed, type RequestLogEntry } from '../http/fetcher.ts';
+import { CONTEXT_INFO, type ContextCategory } from '../scoring/context.ts';
 
 export interface AiProvider {
   id: string;
@@ -16,7 +10,7 @@ export interface AiProvider {
   suggestContext(snippet: string, log: RequestLogEntry[]): Promise<{ category: ContextCategory; reason: string } | null>;
 }
 
-const CATEGORIES: ContextCategory[] = ['OFFICIAL_PROFILE', 'SALE_OFFER', 'MESSENGER_SETTLEMENT', 'EMAIL_SIGNATURE', 'FORUM_DISCUSSION', 'MASS_COMMENT'];
+const CATEGORIES = Object.keys(CONTEXT_INFO) as ContextCategory[];
 
 class OpenAiCompatible implements AiProvider {
   id = 'openai-compatible';

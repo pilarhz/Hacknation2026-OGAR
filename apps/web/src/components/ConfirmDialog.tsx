@@ -1,7 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
-// Okno potwierdzenia w stylu aplikacji (zamiast window.confirm przeglądarki).
-// Esc lub kliknięcie w tło = Anuluj; fokus startuje na „Anuluj", żeby Enter niczego przypadkiem nie usunął.
+// Okno potwierdzenia zamiast window.confirm. Esc / tło = Anuluj; fokus na „Anuluj”, by Enter niczego nie usunął.
 export function ConfirmDialog({
   title,
   children,

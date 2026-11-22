@@ -43,18 +43,12 @@ export const config = {
   trongridUrl: env('TRONGRID_URL', 'https://api.trongrid.io'),
   githubToken: env('GITHUB_TOKEN'),
   searxngUrl: env('SEARXNG_URL'),
-  /**
-   * Biała lista hostów, do których aplikacja może wysyłać zapytania.
-   * Zgodnie z wymaganiem: brak wysyłania danych do niezatwierdzonych usług.
-   */
+  /** Biała lista hostów – żadnych zapytań do niezatwierdzonych usług. */
   allowedHosts: list(
     'ALLOWED_HOSTS',
     '127.0.0.1,localhost,api.github.com,github.com,raw.githubusercontent.com,gist.githubusercontent.com,keybase.io,gravatar.com,en.gravatar.com,api.gravatar.com,www.reddit.com,hn.algolia.com,web.archive.org,eth.blockscout.com,blockstream.info,apilist.tronscanapi.com,api.trongrid.io',
   ),
-  /**
-   * Czy strona podana WPROST przez analityka w danych wejściowych może być pobrana (zgoda na jej host
-   * obowiązuje tylko w danym przebiegu). Strony ujawnione w pivocie zawsze wymagają zatwierdzenia hosta.
-   */
+  /** Strona podana wprost w danych wejściowych = zgoda na jej host w tym przebiegu; strony z pivotu zawsze wymagają zatwierdzenia. */
   allowUserUrls: env('ALLOW_USER_URLS', 'true') === 'true',
   userAgent: env('USER_AGENT', 'OGAR-OSINT-research/0.1 (+public-sources-only)'),
   requestTimeoutMs: Number(env('REQUEST_TIMEOUT_MS', '12000')),

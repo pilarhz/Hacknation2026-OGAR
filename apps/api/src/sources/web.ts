@@ -32,7 +32,7 @@ export const webSource: Source = {
     }
     const res = await fetchText(url.toString(), { log: ctx.log, accept: 'text/html,*/*' });
     if (res.status !== 200 || !/html|text/.test(res.contentType)) return [];
-    const page = parseHtml(res.body, url.toString());
+    const page = parseHtml(res.body);
     return [
       {
         source: local ? 'sandbox' : 'web',
@@ -76,7 +76,7 @@ export const waybackSource: Source = {
       try {
         const res = await fetchText(snapUrl, { log: ctx.log });
         if (res.status !== 200) continue;
-        const page = parseHtml(res.body, target.href);
+        const page = parseHtml(res.body);
         const when = `${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)}T${ts.slice(8, 10)}:${ts.slice(10, 12)}:${ts.slice(12, 14)}Z`;
         docs.push({
           source: 'wayback',

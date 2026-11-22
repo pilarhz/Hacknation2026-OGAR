@@ -6,7 +6,7 @@ const bandOf = (s: number) => (s >= 80 ? 'VERY_HIGH' : s >= 60 ? 'PROBABLE' : s 
 
 export function ListPage() {
   const [items, setItems] = useState<InvestigationListItem[] | null>(null);
-  const load = () => api.list().then(setItems);
+  const load = () => api.list().then(setItems).catch(() => {}); // chwilowy brak API – kolejna próba za 5 s
   useEffect(() => {
     load();
     const t = setInterval(load, 5000);

@@ -1,7 +1,5 @@
-// Ekstrakcja treści z HTML. Obsługuje dwa poziomy:
-// 1) znaczniki strukturalne (data-author, data-kind, data-published, itemprop) – używane przez
-//    syntetyczną piaskownicę oraz wiele forów (schema.org / microdata),
-// 2) fallback – czysty tekst strony.
+// Treść z HTML: znaczniki strukturalne (data-author/kind/published, itemprop – piaskownica, schema.org),
+// a w braku nich czysty tekst strony.
 import * as cheerio from 'cheerio';
 import type { DocKind, Segment } from './types.ts';
 
@@ -13,13 +11,12 @@ export interface ParsedPage {
   publishedAt?: string;
   verified?: boolean;
   segments: Segment[];
-  links: string[];
 }
 
 /** Spacja przed każdym znacznikiem zamykającym i po <br> – inaczej tekst sąsiednich elementów się skleja. */
 const spaced = (html: string) => html.replace(/<\/[a-z][a-z0-9]*\s*>/gi, ' $&').replace(/<br\s*\/?>/gi, ' $&');
 
-export function parseHtml(html: string, baseUrl: string): ParsedPage {
+export function parseHtml(html: string): ParsedPage {
   const $ = cheerio.load(spaced(html));
   $('script, style, noscript, svg').remove();
   const title = $('title').first().text().trim() || $('h1').first().text().trim();
@@ -45,17 +42,8 @@ export function parseHtml(html: string, baseUrl: string): ParsedPage {
     });
   });
 
-  const links: string[] = [];
-  $('a[href]').each((_, el) => {
-    try {
-      links.push(new URL($(el).attr('href') as string, baseUrl).toString());
-    } catch {
-      /* ignoruj błędne linki */
-    }
-  });
-
   const text = $('body').text().replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
-  return { title, text, author, kind, publishedAt, verified, segments, links };
+  return { title, text, author, kind, publishedAt, verified, segments };
 }
 
 export function stripHtml(html: string): string {

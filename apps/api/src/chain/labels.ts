@@ -4,7 +4,7 @@ import path from 'node:path';
 import { API_ROOT } from '../config.ts';
 import { db, iso, now } from '../db/db.ts';
 import type { AddressLabel, LabelCategory } from './types.ts';
-import type { Chain } from '../extract/addresses.ts';
+import { addressKey as keyOf, type Chain } from '../extract/addresses.ts';
 
 interface SeedLabel {
   chain: Chain;
@@ -14,8 +14,6 @@ interface SeedLabel {
   synthetic?: boolean;
 }
 
-const keyOf = (chain: string, address: string) => `${chain}:${chain === 'ETH' ? address.toLowerCase() : address}`;
-
 let seed: Map<string, AddressLabel> | null = null;
 function seedLabels(): Map<string, AddressLabel> {
   if (seed) return seed;
@@ -24,9 +22,7 @@ function seedLabels(): Map<string, AddressLabel> {
   return seed;
 }
 
-// Etykiety analityków trzymamy w pamięci (odświeżane z bazy na start przebiegu i po każdej zmianie):
-// sprawdzanie etykiety odbywa się dla każdego kontrahenta każdej transakcji, więc musi być szybkie
-// i synchroniczne, a liczba etykiet jest niewielka.
+// Etykiety analityków w pamięci (odświeżane na start przebiegu i po zmianie) – sprawdzane synchronicznie dla każdego kontrahenta.
 let custom = new Map<string, AddressLabel>();
 
 export async function refreshCustomLabels(): Promise<void> {

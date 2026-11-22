@@ -1,10 +1,5 @@
-// Warstwa danych: PostgreSQL.
-//
-// Jeden schemat i te same zapytania SQL działają w dwóch trybach:
-//  - serwer PostgreSQL (produkcja, docker-compose) – gdy ustawiono DATABASE_URL, sterownik `pg`;
-//  - wbudowany PostgreSQL (PGlite – silnik PostgreSQL skompilowany do WebAssembly, działający
-//    w procesie Node) – domyślnie, żeby prototyp uruchamiał się bez instalowania serwera bazy.
-// Dane wbudowanej bazy są w katalogu DB_PATH (":memory:" = baza w pamięci, używana w testach).
+// PostgreSQL w dwóch trybach z tym samym schematem i SQL: serwer (DATABASE_URL, sterownik `pg`)
+// albo wbudowany PGlite (WebAssembly w procesie Node) w katalogu DB_PATH (":memory:" w testach).
 import { mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.ts';

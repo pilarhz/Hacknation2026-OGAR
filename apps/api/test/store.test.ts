@@ -117,7 +117,8 @@ test('Harmonogram uruchamia analizę cykliczną; usunięcie sprawy usuwa kaskado
   } finally {
     clearInterval(timer);
   }
-  await store.deleteInvestigation(inv.id);
+  await store.trashInvestigation(inv.id);
+  assert.equal(await store.purgeTrashed(inv.id), true);
   assert.equal(await store.getInvestigation(inv.id), null);
   const orphans = await db().one<{ n: string }>('SELECT COUNT(*) AS n FROM runs WHERE investigation_id = $1', [inv.id]);
   assert.equal(Number(orphans!.n), 0);

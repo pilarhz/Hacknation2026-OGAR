@@ -154,7 +154,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
           <tr>
             <td />
             <td>
-              <b>Wynik</b> <span className="muted small">(ograniczony do 0–100) · {a.score.bandLabel}</span>
+              <b>Wynik</b> <span className="muted small">(ograniczony do 0–99) · {a.score.bandLabel}</span>
             </td>
             <td>
               <b>{a.score.score}</b>
@@ -204,10 +204,7 @@ export function AddressDetail({ a, meta, onOpenDoc, onLabeled }: { a: AddressRes
           </div>
           {a.indicators.map((i) => (
             <div key={i.code + i.title} className={`callout ${i.cashOut ? 'red' : i.severity === 'medium' ? 'warn' : ''}`}>
-              <b>
-                {i.cashOut ? "" : ""}
-                {i.title}
-              </b>{' '}
+              <b>{i.title}</b>{' '}
               {i.cashOut && <span className="tag cash">możliwy cash-out do fiat</span>}
               <div className="small">{i.detail}</div>
             </div>

@@ -1,8 +1,5 @@
-// Dostawcy danych blockchain (publiczne eksploratory, bez kluczy API):
-//  - Ethereum: Blockscout API v2 (etykiety, flaga kontraktu, transakcje, transfery ERC-20)
-//  - Bitcoin: Esplora (Blockstream) – statystyki adresu i ostatnie transakcje
-//  - TRON: Tronscan – konto i transfery TRC-20 (USDT)
-//  - Fixture: dane syntetyczne dla adresów z piaskownicy testowej
+// Dane blockchain z publicznych eksploratorów (bez kluczy): ETH – Blockscout v2, BTC – Esplora,
+// TRON – Tronscan (z kluczem) lub TronGrid; adresy z piaskownicy – dane syntetyczne (fixtures).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { API_ROOT, config } from '../config.ts';
@@ -10,7 +7,7 @@ import { db, iso, now, toJsonb } from '../db/db.ts';
 import { currentCacheSince, fetchJson, type RequestLogEntry } from '../http/fetcher.ts';
 import { categorizeExplorerTag, lookupLabel } from './labels.ts';
 import type { AddressLabel, ChainSummary, ChainTx } from './types.ts';
-import type { Chain } from '../extract/addresses.ts';
+import { addressKey, type Chain } from '../extract/addresses.ts';
 
 const STABLES = new Set(['USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'USDE', 'FDUSD', 'PYUSD', 'EURC']);
 export const isStable = (symbol: string) => STABLES.has(symbol.toUpperCase());
@@ -245,10 +242,9 @@ function loadFixtures(): Record<string, Fixture> {
   if (!fixtures) fixtures = JSON.parse(readFileSync(path.join(API_ROOT, 'data', 'chain-fixtures.json'), 'utf8')).addresses;
   return fixtures!;
 }
-const fixtureKey = (chain: Chain, address: string) => `${chain}:${chain === 'ETH' ? address.toLowerCase() : address}`;
 
 function fromFixture(chain: Chain, address: string, f: Fixture): ChainSummary {
-  const native = chain === 'ETH' ? 'ETH' : chain === 'BTC' ? 'BTC' : chain === 'TRX' ? 'TRX' : chain;
+  const native = chain;
   const s = emptySummary(chain, address, 'Dane syntetyczne (piaskownica)', native);
   s.synthetic = true;
   s.volumeScope = 'full';
@@ -282,37 +278,37 @@ function finalizeTimes(s: ChainSummary) {
 }
 
 // ---------------- Fasada z cache ----------------
+/** Podsumowanie bez danych (on-chain wyłączone, brak dostawcy, błąd) – etykieta i powód dla analityka. */
+function unavailable(chain: Chain, address: string, provider: string, error: string): ChainSummary {
+  const s = emptySummary(chain, address, provider, chain);
+  s.label = lookupLabel(chain, address);
+  s.error = error;
+  return s;
+}
+
 export async function getChainSummary(chain: Chain, address: string, log: RequestLogEntry[]): Promise<ChainSummary> {
-  const fx = loadFixtures()[fixtureKey(chain, address)];
+  const key = addressKey(chain, address);
+  const fx = loadFixtures()[key];
   if (fx) return fromFixture(chain, address, fx);
 
-  const key = fixtureKey(chain, address);
   const cached = await db().one<{ fetched_at: unknown; data: ChainSummary }>('SELECT fetched_at, data FROM chain_cache WHERE key = $1', [key]);
   const cachedAt = cached ? Date.parse(iso(cached.fetched_at)!) : 0;
   if (cached && Date.now() - cachedAt < config.cacheTtlMinutes * 60_000 && cachedAt >= currentCacheSince()) return cached.data;
-  const native = chain === 'LTC' ? 'LTC' : chain === 'DOGE' ? 'DOGE' : chain === 'SOL' ? 'SOL' : chain === 'XMR' ? 'XMR' : chain;
-  if (!config.chainLive) {
-    const s = emptySummary(chain, address, 'brak (CHAIN_LIVE=false)', native);
-    s.error = 'Pobieranie danych on-chain wyłączone w konfiguracji (CHAIN_LIVE=false).';
-    s.label = lookupLabel(chain, address);
-    return s;
-  }
+  if (!config.chainLive) return unavailable(chain, address, 'brak (CHAIN_LIVE=false)', 'Pobieranie danych on-chain wyłączone w konfiguracji (CHAIN_LIVE=false).');
   let s: ChainSummary;
   try {
     if (chain === 'ETH') s = await ethBlockscout(address, log);
     else if (chain === 'BTC') s = await btcEsplora(address, log);
     else if (chain === 'TRX') s = config.tronscanApiKey ? await tronscan(address, log) : await trongrid(address, log);
-    else {
-      s = emptySummary(chain, address, 'brak dostawcy', native);
-      s.label = lookupLabel(chain, address);
-      s.error = chain === 'XMR' ? 'Monero jest siecią prywatną – historia transakcji nie jest publicznie dostępna.' : `Brak skonfigurowanego dostawcy danych dla sieci ${chain} (rozszerzalne w chain/providers.ts).`;
-      return s;
-    }
+    else
+      return unavailable(
+        chain,
+        address,
+        'brak dostawcy',
+        chain === 'XMR' ? 'Monero jest siecią prywatną – historia transakcji nie jest publicznie dostępna.' : `Brak skonfigurowanego dostawcy danych dla sieci ${chain} (rozszerzalne w chain/providers.ts).`,
+      );
   } catch (e) {
-    s = emptySummary(chain, address, 'błąd', native);
-    s.label = lookupLabel(chain, address);
-    s.error = `Nie udało się pobrać danych on-chain: ${e instanceof Error ? e.message : String(e)}`;
-    return s;
+    return unavailable(chain, address, 'błąd', `Nie udało się pobrać danych on-chain: ${e instanceof Error ? e.message : String(e)}`);
   }
   await db().query(
     `INSERT INTO chain_cache (key, fetched_at, data) VALUES ($1, $2, $3::jsonb)

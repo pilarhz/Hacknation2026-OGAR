@@ -6,8 +6,7 @@ COPY apps/web/package.json apps/web/
 COPY apps/sandbox/package.json apps/sandbox/
 RUN npm ci
 COPY . .
-# Frontend jest wbudowywany w statyczny bundle, więc jego zależności (react, cytoscape, vite…)
-# są devDependencies i znikają po prune – w obrazie zostaje tylko runtime API.
+# Frontend to statyczny bundle – jego zależności (react, vite…) są devDependencies i znikają po prune.
 RUN npm run build && npm prune --omit=dev
 
 FROM node:24-alpine

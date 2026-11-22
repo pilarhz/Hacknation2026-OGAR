@@ -287,9 +287,9 @@ export function InvestigationPage({ id, meta }: { id: string; meta: Meta }) {
 
 function Summary({ r, onPick, approved, onApprove }: { r: RunResult; onPick: (key: string) => void; approved: string[]; onApprove: (host: string) => void }) {
   const s = r.stats;
-  const top = r.addresses.filter((a) => !a.score.excluded && a.score.score >= 40);
+  const top = r.addresses.filter((a) => !a.score.excluded && a.score.score >= 40); // silnik sortuje malejąco po wyniku
   const skipped = r.skippedUrls ?? [];
-  const best = top.reduce<(typeof top)[number] | null>((m, a) => (!m || a.score.score > m.score.score ? a : m), null);
+  const best = top[0] ?? null;
   return (
     <>
       {skipped.length > 0 && (

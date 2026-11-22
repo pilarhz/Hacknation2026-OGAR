@@ -1,8 +1,5 @@
-// Jedyny punkt wyjścia aplikacji do sieci.
-// - biała lista hostów (brak wysyłania danych do niezatwierdzonych usług),
-// - limit tempa per host, timeout, identyfikujący User-Agent,
-// - cache w bazie (odtwarzalność + oszczędzanie limitów API),
-// - rejestr wszystkich zapytań w logu przebiegu.
+// Jedyny punkt wyjścia do sieci: biała lista hostów, limit tempa per host, timeout, User-Agent,
+// cache w bazie i rejestr każdego zapytania w logu przebiegu.
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { config } from '../config.ts';
 import { db, iso, now } from '../db/db.ts';
@@ -28,11 +25,7 @@ export interface RequestLogEntry {
 
 const lastHit = new Map<string, number>();
 
-/**
- * Zakres przebiegu (AsyncLocalStorage): hosty zatwierdzone dla TEGO przebiegu i moment jego startu.
- * Dzięki temu dopuszczenie hosta nie "przecieka" do innych analiz, a cache nie zwraca danych
- * sprzed bieżącego przebiegu (analiza cykliczna zawsze widzi aktualny stan źródeł).
- */
+/** Zakres przebiegu: zgody na hosty nie przeciekają do innych analiz, a cache nie zwraca danych sprzed startu przebiegu. */
 export interface RunScope {
   approvedHosts: Set<string>;
   cacheSince: number;
@@ -52,18 +45,6 @@ export function currentCacheSince(): number {
   return runScope.getStore()?.cacheSince ?? 0;
 }
 
-export function isHostAllowed(url: string): boolean {
-  let host: string;
-  try {
-    host = new URL(url).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
-  // Hosty skonfigurowane przez administratora (AI, SearXNG, piaskownica) są zatwierdzone z definicji.
-  const operatorHosts = [config.sandboxUrl, config.searxngUrl, config.ai.provider !== 'none' ? config.ai.baseUrl : ''].map(safeHost);
-  return config.allowedHosts.includes(host) || operatorHosts.includes(host) || !!runScope.getStore()?.approvedHosts.has(host);
-}
-
 function safeHost(u: string | undefined): string | null {
   if (!u) return null;
   try {
@@ -71,6 +52,14 @@ function safeHost(u: string | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+// Hosty skonfigurowane przez administratora (piaskownica, SearXNG, AI) są zatwierdzone z definicji.
+const ALLOWED = new Set([...config.allowedHosts, ...[config.sandboxUrl, config.searxngUrl, config.ai.provider !== 'none' ? config.ai.baseUrl : ''].map(safeHost).filter((h): h is string => !!h)]);
+
+export function isHostAllowed(url: string): boolean {
+  const host = safeHost(url);
+  return !!host && (ALLOWED.has(host) || !!runScope.getStore()?.approvedHosts.has(host));
 }
 
 async function throttle(host: string) {

@@ -1,14 +1,10 @@
-// Wykrywanie i walidacja adresów kryptowalutowych w dowolnym tekście.
-// Każdy kandydat przechodzi walidację sumy kontrolnej – kandydaci z błędną sumą są
-// zwracani osobno (rejected), aby analityk widział, dlaczego coś odrzucono.
-import {
-  base58CheckDecode,
-  base58Decode,
-  decodeSegwit,
-  toChecksumAddress,
-} from './encoding.ts';
+// Wykrywanie i walidacja adresów krypto w tekście. Kandydaci z błędną sumą kontrolną trafiają do `rejected`.
+import { base58CheckDecode, base58Decode, decodeSegwit, toChecksumAddress } from './encoding.ts';
 
 export type Chain = 'BTC' | 'ETH' | 'TRX' | 'LTC' | 'DOGE' | 'SOL' | 'XMR';
+
+/** Klucz deduplikacji adresu: chain:adres (ETH małymi literami). */
+export const addressKey = (chain: string, address: string) => `${chain}:${chain === 'ETH' ? address.toLowerCase() : address}`;
 
 export interface AddressMatch {
   chain: Chain;

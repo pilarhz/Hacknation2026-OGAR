@@ -61,8 +61,7 @@ function rowToRun(r: Row): RunRow {
 }
 
 export async function listInvestigations() {
-  // Ostatni zakończony przebieg pobieramy częściowo (statystyki + najwyższy niewykluczony wynik),
-  // żeby lista spraw nie przesyłała z bazy pełnych wyników JSON.
+  // Z ostatniego przebiegu tylko statystyki i najwyższy wynik – bez przesyłania pełnego JSON.
   const rows = await db().query(
     `SELECT i.*,
             (SELECT COUNT(*) FROM runs r WHERE r.investigation_id = i.id) AS run_count,
@@ -117,12 +116,6 @@ export async function approveHost(id: string, host: string): Promise<Investigati
   await db().query('UPDATE investigations SET options = $1::jsonb, updated_at = $2 WHERE id = $3', [toJsonb({ ...inv.options, approvedHosts: hosts }), now(), id]);
   await audit('investigation.approve-host', { id, host });
   return getInvestigation(id);
-}
-
-/** Trwałe usunięcie analizy razem z przebiegami i dokumentami (ON DELETE CASCADE). */
-export async function deleteInvestigation(id: string) {
-  await db().query('DELETE FROM investigations WHERE id = $1', [id]);
-  await audit('investigation.delete', { id });
 }
 
 // ---------------- Kosz ----------------

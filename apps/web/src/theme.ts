@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 
-// Motyw interfejsu: jasny (domyślny) albo ciemny. Wybór jest zapamiętywany w localStorage tej przeglądarki.
-// Atrybut data-theme na <html> ustawia też skrypt w index.html jeszcze przed załadowaniem Reacta,
-// żeby przy starcie nie było mignięcia złego tła.
+// Motyw jasny (domyślny) lub ciemny, zapamiętany w localStorage. index.html ustawia data-theme przed Reactem (bez mignięcia).
 export type Theme = 'light' | 'dark';
 
 const KEY = 'ogar-theme';

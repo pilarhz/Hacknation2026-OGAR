@@ -1,5 +1,5 @@
-// Wskaźniki aktywności on-chain, w tym potencjalne wyjście do walut tradycyjnych (Fiat Cash-Out).
-// Każdy wskaźnik wskazuje konkretne transakcje (hash), aby analityk mógł go zweryfikować.
+// Wskaźniki on-chain, w tym wyjście do fiat (cash-out). Każdy wskazuje transakcje (hash) do weryfikacji.
+import { addressKey } from '../extract/addresses.ts';
 import { isStable } from './providers.ts';
 import type { ChainSummary, Indicator } from './types.ts';
 
@@ -55,7 +55,7 @@ export function computeIndicators(s: ChainSummary, opts: IndicatorOptions): Indi
   if (cexIn.length)
     out.push({ code: 'CEX_INFLOW', severity: 'info', title: 'Wypłaty z giełdy na ten adres', detail: `${cexIn.length} transakcji z: ${names(cexIn)}; łącznie ${sum(cexIn)} (możliwy zakup kryptowaluty na giełdzie).`, cashOut: false, txs: cexIn.map((t) => t.hash) });
 
-  const linked = s.txs.filter((t) => t.counterparty && opts.linkedKeys.has(`${s.chain}:${s.chain === 'ETH' ? t.counterparty.toLowerCase() : t.counterparty}`));
+  const linked = s.txs.filter((t) => t.counterparty && opts.linkedKeys.has(addressKey(s.chain, t.counterparty)));
   if (linked.length)
     out.push({ code: 'LINKED_ADDRESS', severity: 'medium', title: 'Transakcje z innym adresem przypisanym badanemu', detail: `Bezpośrednie przepływy z/do: ${[...new Set(linked.map((t) => t.counterparty))].join(', ')} – potwierdza wspólną kontrolę lub powiązanie.`, cashOut: false, txs: linked.map((t) => t.hash) });
 

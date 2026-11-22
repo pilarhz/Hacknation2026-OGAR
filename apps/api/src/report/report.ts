@@ -50,7 +50,7 @@ export function renderReport(inv: Investigation, run: RunRow, r: RunResult): str
     <h4>Wynik obliczeń – Wskaźnik Pewności</h4>
     <table class="rules"><tr><th>Reguła</th><th>Opis</th><th>Wartość</th></tr>
     ${a.score.rules.map((x) => `<tr><td>${esc(x.code)}</td><td>${esc(x.label)}${x.evidenceDocId ? ` <span class="muted">[${esc(x.evidenceDocId)}]</span>` : ''}</td><td class="num">${x.kind === 'base' ? '' : x.value > 0 ? '+' : ''}${x.value}</td></tr>`).join('')}
-    <tr><td></td><td><b>Wynik (ograniczony do 0–100)</b></td><td class="num"><b>${a.score.score}</b></td></tr></table>
+    <tr><td></td><td><b>Wynik (ograniczony do 0–99)</b></td><td class="num"><b>${a.score.score}</b></td></tr></table>
     ${a.aiSuggestions.length ? `<p class="muted">Sugestie AI (nie wpływają na wynik): ${a.aiSuggestions.map((s) => `[${esc(s.docId)}] ${esc(s.category)} – ${esc(s.reason)}`).join('; ')}</p>` : ''}
     ${
       a.onchain

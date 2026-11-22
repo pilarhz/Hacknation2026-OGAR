@@ -1,6 +1,4 @@
-// Źródło syntetyczne: lokalny "internet" z fikcyjnymi forami, ogłoszeniami P2P, profilami
-// i kanałami komunikatorów (apps/sandbox). Służy do odtwarzalnych scenariuszy testowych
-// wymaganych w zadaniu – bez przetwarzania danych prawdziwych osób.
+// Źródło syntetyczne: lokalny „internet” z fikcyjnymi stronami (apps/sandbox) do odtwarzalnych scenariuszy testowych.
 import { config } from '../config.ts';
 import { fetchJson, fetchText } from '../http/fetcher.ts';
 import { parseHtml } from './html.ts';
@@ -36,7 +34,7 @@ export const sandboxSource: Source = {
       const url = new URL(hit.url, base).toString();
       const res = await fetchText(url, { log: ctx.log, useCache: false });
       if (res.status !== 200) continue;
-      const page = parseHtml(res.body, url);
+      const page = parseHtml(res.body);
       docs.push({
         source: 'sandbox',
         url,
